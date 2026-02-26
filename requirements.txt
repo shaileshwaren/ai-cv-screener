@@ -20,3 +20,4 @@ tiktoken>=0.5.0
 # Web server (Render)
 fastapi>=0.100.0
 uvicorn[standard]>=0.22.0
+python-multipart>=0.0.6
