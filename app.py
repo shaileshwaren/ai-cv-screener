@@ -16,7 +16,7 @@ import sys
 import threading
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, Query
+from fastapi import FastAPI, HTTPException, Request, Query, Form, File, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -99,6 +99,10 @@ RUN_UI_HTML = r"""
     #results-section { display: none; }
     #results-section.visible { display: block; }
     #table-wrap { overflow-x: auto; }
+    .field-static { padding: 0.5rem 0.75rem; font-size: 0.95rem; color: #4a5568; background: #edf2f7; border-radius: 6px; min-width: 140px; }
+    .field-file { padding: 0.35rem 0; font-size: 0.9rem; }
+    .terminal { background: #1a202c; color: #e2e8f0; font-family: ui-monospace, monospace; font-size: 0.8rem; padding: 1rem; border-radius: 8px; min-height: 200px; max-height: 400px; overflow: auto; white-space: pre-wrap; word-break: break-all; margin-bottom: 1rem; }
+    .terminal-title { font-size: 0.75rem; font-weight: 600; color: #718096; text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 0.5rem; }
   </style>
 </head>
 <body>
@@ -118,15 +122,13 @@ RUN_UI_HTML = r"""
           <input type="text" id="job_id" name="job_id" value="3419430" placeholder="e.g. 2911609" required>
         </div>
         <div class="field">
-          <label for="stage">PIPELINE STAGE</label>
-          <select id="stage" name="stage">
-            <option value="Processing" selected>Processing</option>
-            <option value="Applied">Applied</option>
-            <option value="Screening">Screening</option>
-            <option value="Interview">Interview</option>
-            <option value="Offer">Offer</option>
-            <option value="Hired">Hired</option>
-          </select>
+          <label>PIPELINE STAGE</label>
+          <div class="field-static">New Candidates</div>
+        </div>
+        <div class="field">
+          <label for="rubric">RUBRIC</label>
+          <input type="file" id="rubric" name="rubric" accept=".yaml,.yml" class="field-file">
+          <span class="meta">Optional. YAML file for this job (saved as rubric_&lt;Job ID&gt;.yaml)</span>
         </div>
         <button type="submit" class="btn-run" id="btn">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -135,6 +137,10 @@ RUN_UI_HTML = r"""
       </form>
     </section>
     <div class="status-bar" id="status-bar"></div>
+    <section class="card">
+      <div class="terminal-title">Terminal</div>
+      <div class="terminal" id="terminal">No output yet. Run AI Scoring to see pipeline logs.</div>
+    </section>
     <section id="stats-section" class="stats" style="display: none;"></section>
     <section class="card" id="results-section">
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
@@ -160,6 +166,7 @@ RUN_UI_HTML = r"""
   </main>
   <script>
     var pollInterval = null;
+    var logPollInterval = null;
     function $(id) { return document.getElementById(id); }
     function showStatus(msg, type) {
       var bar = $("status-bar");
@@ -170,6 +177,26 @@ RUN_UI_HTML = r"""
     function stopPolling() {
       if (pollInterval) clearInterval(pollInterval);
       pollInterval = null;
+    }
+    function pollLogs() {
+      if (logPollInterval) return;
+      logPollInterval = setInterval(function() {
+        fetch("/logs")
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var el = $("terminal");
+            el.textContent = data.logs || "No output yet.";
+            el.scrollTop = el.scrollHeight;
+            if (!data.running && logPollInterval) {
+              clearInterval(logPollInterval);
+              logPollInterval = null;
+            }
+          })
+          .catch(function() {});
+      }, 1500);
+    }
+    function stopLogPolling() {
+      if (logPollInterval) { clearInterval(logPollInterval); logPollInterval = null; }
     }
     function renderStats(candidates) {
       var n = candidates.length;
@@ -256,25 +283,27 @@ RUN_UI_HTML = r"""
     $("form").addEventListener("submit", function(e) {
       e.preventDefault();
       var jobId = $("job_id").value.trim();
-      var stage = $("stage").value;
+      var rubricInput = $("rubric");
       var btn = $("btn");
       if (!jobId) return;
       btn.disabled = true;
-      showStatus("Running AI scoring… This may take a few minutes. Waiting for results.", "running");
-      fetch("/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job_ids: jobId, stage: stage })
-      })
+      $("terminal").textContent = "Starting pipeline…";
+      showStatus("Running AI scoring. Watch the terminal below.", "running");
+      var formData = new FormData();
+      formData.append("job_ids", jobId);
+      formData.append("stage", "New Candidates");
+      if (rubricInput.files && rubricInput.files[0]) formData.append("rubric", rubricInput.files[0]);
+      fetch("/run/form", { method: "POST", body: formData })
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data.status === "accepted" || data.job_ids) {
             var firstId = jobId.split(",")[0].trim();
             showStatus("Pipeline started. Polling for results every 5s…", "running");
+            pollLogs();
             pollResults(firstId);
             setTimeout(function() {
               if (pollInterval) {
-                showStatus("Still running. Results will appear when scoring finishes. You can refresh and use /results?job_id=" + firstId + " later.", "running");
+                showStatus("Still running. Results will appear when scoring finishes.", "running");
               }
             }, 60000);
           } else {
@@ -294,9 +323,14 @@ RUN_UI_HTML = r"""
 
 HERE = Path(__file__).resolve().parent
 PIPELINE_SCRIPT = HERE / "online_pipeline.py"
+RUBRIC_DIR = HERE / "rubrics"
 
 # Optional: job IDs to use when running via cron (set RENDER_CRON_JOB_IDS in Render)
 CRON_JOB_IDS = os.getenv("RENDER_CRON_JOB_IDS", "").strip()
+
+# Pipeline log capture for terminal UI (thread-safe: main reads, pipeline thread writes)
+_pipe_state: dict = {"logs": [], "running": False}
+_pipe_lock = threading.Lock()
 
 # Minimal error page so Render never shows a raw stack trace
 ERROR_HTML = """<!DOCTYPE html><html><head><meta charset="utf-8"><title>Error</title></head><body><h1>Something went wrong</h1><p>Check Render logs. <a href="/">Try again</a>.</p></body></html>"""
@@ -351,6 +385,53 @@ def _run_pipeline_sync(
     return result.returncode
 
 
+def _run_pipeline_with_logs(
+    job_ids: str,
+    skip_scoring: bool = False,
+    skip_upload: bool = False,
+    skip_reports: bool = False,
+    stage: str | None = None,
+) -> None:
+    """Run pipeline and capture stdout/stderr to _pipe_state for terminal UI."""
+    with _pipe_lock:
+        _pipe_state["logs"] = [f"Pipeline started for job(s): {job_ids}", ""]
+        _pipe_state["running"] = True
+    cmd = [sys.executable, str(PIPELINE_SCRIPT), job_ids]
+    if skip_scoring:
+        cmd.append("--skip-scoring")
+    if skip_upload:
+        cmd.append("--skip-upload")
+    if skip_reports:
+        cmd.append("--skip-reports")
+    env = os.environ.copy()
+    if stage:
+        env["TARGET_STAGE_NAME"] = stage
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            cwd=str(HERE),
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+        if proc.stdout:
+            while True:
+                line = proc.stdout.readline()
+                if not line:
+                    break
+                with _pipe_lock:
+                    _pipe_state["logs"].append(line.rstrip())
+        proc.wait()
+    except Exception as e:
+        with _pipe_lock:
+            _pipe_state["logs"].append(f"[ERROR] {e}")
+    finally:
+        with _pipe_lock:
+            _pipe_state["running"] = False
+
+
 @app.get("/", response_class=HTMLResponse)
 def root():
     """Run Pipeline UI — open this link in the browser to trigger the pipeline."""
@@ -398,6 +479,55 @@ def get_results(job_id: str = Query(..., description="Job ID to fetch scored can
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/logs")
+def get_logs():
+    """Return captured pipeline stdout for the terminal UI."""
+    with _pipe_lock:
+        logs = list(_pipe_state["logs"])
+        running = _pipe_state["running"]
+    return {"logs": "\n".join(logs), "running": running}
+
+
+@app.post("/run/form")
+async def run_pipeline_form(
+    job_ids: str = Form(..., description="Job ID(s), comma-separated"),
+    stage: str = Form("New Candidates", description="Pipeline stage"),
+    rubric: UploadFile | None = File(None, description="Optional rubric YAML file"),
+):
+    """
+    Trigger the pipeline from the dashboard form (supports rubric upload).
+    If rubric file is provided, it is saved as rubrics/rubric_{first_job_id}.yaml before running.
+    """
+    job_ids_norm = _normalize_job_ids(job_ids)
+    if not job_ids_norm:
+        raise HTTPException(status_code=400, detail="job_ids is required")
+
+    first_id = job_ids_norm.split(",")[0].strip()
+    if rubric and rubric.filename:
+        RUBRIC_DIR.mkdir(parents=True, exist_ok=True)
+        path = RUBRIC_DIR / f"rubric_{first_id}.yaml"
+        content = await rubric.read()
+        path.write_bytes(content)
+
+    def _run():
+        _run_pipeline_with_logs(
+            job_ids_norm,
+            skip_scoring=False,
+            skip_upload=False,
+            skip_reports=False,
+            stage=stage or "New Candidates",
+        )
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+
+    return {
+        "status": "accepted",
+        "message": "Pipeline started. Watch the terminal for output.",
+        "job_ids": job_ids_norm,
+    }
+
+
 @app.post("/run")
 def run_pipeline(request: RunRequest):
     """
@@ -411,7 +541,7 @@ def run_pipeline(request: RunRequest):
         raise HTTPException(status_code=400, detail="job_ids is required")
 
     def _run():
-        _run_pipeline_sync(
+        _run_pipeline_with_logs(
             job_ids,
             request.skip_scoring,
             request.skip_upload,
@@ -424,7 +554,7 @@ def run_pipeline(request: RunRequest):
 
     return {
         "status": "accepted",
-        "message": "Pipeline started in background. Check Render logs for output.",
+        "message": "Pipeline started in background. Watch the terminal for output.",
         "job_ids": job_ids,
     }
 
