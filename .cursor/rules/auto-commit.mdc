@@ -1,0 +1,15 @@
+---
+description: Auto-commit after making changes to the codebase
+alwaysApply: true
+---
+
+# Auto-commit after changes
+
+Whenever you create, edit, or delete files in this project:
+
+1. After finishing your edits, run:
+   - `git add -A` (or add only the changed files if you prefer)
+   - `git commit -m "Brief descriptive message of what changed"`
+2. Use a short, present-tense commit message (e.g. "Add dashboard UI", "Fix NocoDB sync", "Update checklist").
+3. Do not commit if the user only asked a question or you only read files without modifying anything.
+4. Do not commit secrets or .env; ensure .gitignore already excludes them.

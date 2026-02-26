@@ -17,7 +17,7 @@ If opening your Render URL shows **JSON** (`"service":"Recruitment Pipeline API"
 5. Go to **Manual Deploy** → **Deploy latest commit**.
 6. When the deploy is **Live**, open your Render URL again. You should see the **Run recruitment pipeline** page.
 
-The link to open: **https://your-service-name.onrender.com** (e.g. `https://recruitment-pipeline-m841.onrender.com`).
+The link to open: **https://your-service-name.onrender.com** (e.g. `https://recruitment-pipeline-render.onrender.com`).
 
 ---
 

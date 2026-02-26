@@ -3,7 +3,7 @@
 ## 1. When you open the Render webpage
 
 ```
-You open:  https://recruitment-pipeline-m841.onrender.com
+You open:  https://recruitment-pipeline-render.onrender.com
                 │
                 ▼
          Render runs the app connected to your service
