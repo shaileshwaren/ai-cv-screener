@@ -10,6 +10,7 @@ On Render, PORT is set automatically; use: uvicorn app:app --host 0.0.0.0 --port
 
 from __future__ import annotations
 
+import asyncio
 import os
 import subprocess
 import sys
@@ -17,7 +18,7 @@ import threading
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, Query, Form, File, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -202,27 +203,27 @@ RUN_UI_HTML = r"""
       if (pollInterval) clearInterval(pollInterval);
       pollInterval = null;
     }
-    function fetchLogs() {
-      fetch("/logs")
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          var el = $("terminal");
-          el.textContent = data.logs || "No output yet.";
-          el.scrollTop = el.scrollHeight;
-          if (!data.running && logPollInterval) {
-            clearInterval(logPollInterval);
-            logPollInterval = null;
-          }
-        })
-        .catch(function() {});
+    var logStreamSource = null;
+    function stopLogStream() {
+      if (logStreamSource) { logStreamSource.close(); logStreamSource = null; }
     }
-    function pollLogs() {
-      if (logPollInterval) return;
-      fetchLogs();
-      logPollInterval = setInterval(fetchLogs, 400);
-    }
-    function stopLogPolling() {
-      if (logPollInterval) { clearInterval(logPollInterval); logPollInterval = null; }
+    function startLogStream() {
+      stopLogStream();
+      var el = $("terminal");
+      el.textContent = "";
+      var url = "/logs/stream";
+      logStreamSource = new EventSource(url);
+      logStreamSource.onmessage = function(e) {
+        var line = e.data;
+        el.textContent += line + "\n";
+        el.scrollTop = el.scrollHeight;
+      };
+      logStreamSource.addEventListener("done", function() {
+        if (logStreamSource) { logStreamSource.close(); logStreamSource = null; }
+      });
+      logStreamSource.onerror = function() {
+        if (logStreamSource) { logStreamSource.close(); logStreamSource = null; }
+      };
     }
     function renderStats(candidates) {
       var n = candidates.length;
@@ -355,8 +356,8 @@ RUN_UI_HTML = r"""
         .then(function(data) {
           if (data.status === "accepted" || data.job_ids) {
             var firstId = jobId.split(",")[0].trim();
-            showStatus("Pipeline started. Polling for results every 5s…", "running");
-            pollLogs();
+            showStatus("Pipeline started. Watch the terminal for live output.", "running");
+            startLogStream();
             pollResults(firstId);
             setTimeout(function() {
               if (pollInterval) {
@@ -545,6 +546,36 @@ def get_logs():
         logs = list(_pipe_state["logs"])
         running = _pipe_state["running"]
     return {"logs": "\n".join(logs), "running": running}
+
+
+@app.get("/logs/stream")
+async def logs_stream():
+    """Stream log lines as Server-Sent Events so the UI shows output line-by-line like a terminal."""
+    async def generate():
+        last_idx = 0
+        while True:
+            with _pipe_lock:
+                logs = list(_pipe_state["logs"])
+                running = _pipe_state["running"]
+            while last_idx < len(logs):
+                line = logs[last_idx]
+                last_idx += 1
+                for part in line.split("\n"):
+                    yield f"data: {part}\n"
+                yield "\n"
+            if not running and last_idx >= len(logs):
+                yield "event: done\ndata: ok\n\n"
+                return
+            await asyncio.sleep(0.08)
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.post("/run/form")
