@@ -82,7 +82,7 @@ class Config:
     # =========================
     # Scoring Settings
     # =========================
-    MIN_SCORE_FOR_REPORT = int(os.getenv("MIN_SCORE_FOR_REPORT", "85"))
+    MIN_SCORE_FOR_REPORT = int(os.getenv("MIN_SCORE_FOR_REPORT", "75"))
     PASS_THRESHOLD = int(os.getenv("PASS_THRESHOLD", "70"))
 
     # =========================

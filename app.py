@@ -165,7 +165,7 @@ RUN_UI_HTML = r"""
         </table>
       </div>
     </section>
-    <section class="card" id="tier1-section" style="display: none;">
+    <section class="card" id="tier1-section">
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
         <h2>Tier 1 Results</h2>
         <span class="badge-pill">High-scoring &amp; rescored</span>
@@ -296,9 +296,9 @@ RUN_UI_HTML = r"""
       var meta = $("tier1-meta");
       if (!section || !tbody || !meta) return;
       if (!candidates || !candidates.length) {
-        section.style.display = "none";
+        section.style.display = "block";
         tbody.innerHTML = "";
-        meta.textContent = "No Tier 1 candidates with detailed reports yet.";
+        meta.textContent = "No Tier 1 candidates with detailed reports yet. (Candidates scoring ≥75 get rescored and a report.)";
         return;
       }
       section.style.display = "block";
