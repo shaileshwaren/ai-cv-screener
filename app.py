@@ -103,6 +103,7 @@ RUN_UI_HTML = r"""
     .field-file { padding: 0.35rem 0; font-size: 0.9rem; }
     .terminal { background: #1a202c; color: #e2e8f0; font-family: ui-monospace, monospace; font-size: 0.8rem; padding: 1rem; border-radius: 8px; min-height: 200px; max-height: 400px; overflow: auto; white-space: pre-wrap; word-break: break-all; margin-bottom: 1rem; }
     .terminal-title { font-size: 0.75rem; font-weight: 600; color: #718096; text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 0.5rem; }
+    .badge-pill { display: inline-flex; align-items: center; padding: 0.15rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; background: #ebf8ff; color: #2b6cb0; text-transform: uppercase; letter-spacing: 0.02em; }
   </style>
 </head>
 <body>
@@ -160,6 +161,29 @@ RUN_UI_HTML = r"""
             </tr>
           </thead>
           <tbody id="results-body"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="card" id="tier1-section" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+        <h2>Tier 1 Results</h2>
+        <span class="badge-pill">High-scoring &amp; rescored</span>
+      </div>
+      <span class="meta" id="tier1-meta"></span>
+      <div id="tier1-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>CANDIDATE</th>
+              <th>CURRENT ROLE</th>
+              <th>SCORE</th>
+              <th>STAGE</th>
+              <th>RESUME</th>
+              <th>REPORT</th>
+            </tr>
+          </thead>
+          <tbody id="tier1-body"></tbody>
         </table>
       </div>
     </section>
@@ -263,6 +287,35 @@ RUN_UI_HTML = r"""
       $("results-section").classList.add("visible");
       $("results-meta").textContent = candidates.length + " candidates · sorted by score";
     }
+    function renderTier1Table(candidates) {
+      var section = $("tier1-section");
+      var tbody = $("tier1-body");
+      var meta = $("tier1-meta");
+      if (!section || !tbody || !meta) return;
+      if (!candidates || !candidates.length) {
+        section.style.display = "none";
+        tbody.innerHTML = "";
+        meta.textContent = "No Tier 1 candidates with detailed reports yet.";
+        return;
+      }
+      section.style.display = "block";
+      meta.textContent = candidates.length + " candidates with detailed reports";
+      tbody.innerHTML = "";
+      candidates.forEach(function(c, i) {
+        var score = c.ai_score != null ? Number(c.ai_score) : 0;
+        var scoreCl = scoreClass(isNaN(score) ? 0 : score);
+        var row = document.createElement("tr");
+        row.innerHTML =
+          "<td>" + (i + 1) + "</td>" +
+          "<td><strong>" + (c.full_name || "—") + "</strong><div class=\"meta\">" + (c.email || "") + "</div></td>" +
+          "<td><strong>" + (c.job_name || "—") + "</strong><div class=\"meta\">" + (c.org_name || "") + "</div></td>" +
+          "<td><span class=\"score-badge " + scoreCl + "\">" + (isNaN(score) ? "—" : score) + "</span></td>" +
+          "<td>Tier 1</td>" +
+          "<td>" + (c.resume_file ? "<a class=\"link-view\" href=\"" + c.resume_file + "\" target=\"_blank\" rel=\"noopener\">View</a>" : "—") + "</td>" +
+          "<td>" + (c.ai_report_html ? "<a class=\"link-view\" href=\"" + c.ai_report_html + "\" target=\"_blank\" rel=\"noopener\">View report</a>" : "N/A") + "</td>";
+        tbody.appendChild(row);
+      });
+    }
     function pollResults(jobId) {
       stopPolling();
       pollInterval = setInterval(function() {
@@ -275,6 +328,8 @@ RUN_UI_HTML = r"""
               showStatus("Done! " + list.length + " candidate(s) scored. Click any row to expand details.", "success");
               renderStats(list);
               renderTable(list);
+              var tier = data.tier1 || list.filter(function(c) { return c.ai_report_html; });
+              renderTier1Table(tier);
             }
           })
           .catch(function() {});
@@ -472,7 +527,9 @@ def get_results(job_id: str = Query(..., description="Job ID to fetch scored can
             "candidate_id, job_id, job_name, org_id, org_name, full_name, email, "
             "resume_file, match_stage_name, ai_score, ai_summary, ai_strengths, ai_gaps, ai_report_html"
         ).eq("job_id", jid).order("ai_score", desc=True).execute()
-        return {"candidates": r.data or [], "job_id": jid}
+        rows = r.data or []
+        tier1 = [c for c in rows if c.get("ai_report_html")]
+        return {"candidates": rows, "tier1": tier1, "job_id": jid}
     except ValueError:
         raise HTTPException(status_code=400, detail="job_id must be numeric")
     except Exception as e:
