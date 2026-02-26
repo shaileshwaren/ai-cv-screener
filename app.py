@@ -204,16 +204,22 @@ RUN_UI_HTML = r"""
       pollInterval = null;
     }
     var logStreamSource = null;
+    var logPollFallbackInterval = null;
+    var lastLogLength = 0;
     function stopLogStream() {
       if (logStreamSource) { logStreamSource.close(); logStreamSource = null; }
+      if (logPollFallbackInterval) { clearInterval(logPollFallbackInterval); logPollFallbackInterval = null; }
     }
     function startLogStream() {
       stopLogStream();
       var el = $("terminal");
       el.textContent = "";
+      lastLogLength = 0;
+      var sseReceived = false;
       var url = "/logs/stream";
       logStreamSource = new EventSource(url);
       logStreamSource.onmessage = function(e) {
+        sseReceived = true;
         var line = e.data;
         el.textContent += line + "\n";
         el.scrollTop = el.scrollHeight;
@@ -223,7 +229,38 @@ RUN_UI_HTML = r"""
       });
       logStreamSource.onerror = function() {
         if (logStreamSource) { logStreamSource.close(); logStreamSource = null; }
+        startLogPollFallback();
       };
+      setTimeout(function() {
+        if (!sseReceived && logStreamSource) {
+          logStreamSource.close();
+          logStreamSource = null;
+          startLogPollFallback();
+        }
+      }, 2500);
+    }
+    function startLogPollFallback() {
+      if (logPollFallbackInterval) return;
+      var el = $("terminal");
+      function poll() {
+        fetch("/logs").then(function(r) { return r.json(); }).then(function(data) {
+          var logs = data.logs || "";
+          if (lastLogLength === 0) {
+            el.textContent = logs;
+            lastLogLength = logs.length;
+          } else if (logs.length > lastLogLength) {
+            el.textContent += logs.slice(lastLogLength);
+            lastLogLength = logs.length;
+          }
+          el.scrollTop = el.scrollHeight;
+          if (!data.running && logPollFallbackInterval) {
+            clearInterval(logPollFallbackInterval);
+            logPollFallbackInterval = null;
+          }
+        }).catch(function() {});
+      }
+      poll();
+      logPollFallbackInterval = setInterval(poll, 300);
     }
     function renderStats(candidates) {
       var n = candidates.length;
@@ -553,6 +590,7 @@ async def logs_stream():
     """Stream log lines as Server-Sent Events so the UI shows output line-by-line like a terminal."""
     async def generate():
         last_idx = 0
+        last_keepalive = 0
         while True:
             with _pipe_lock:
                 logs = list(_pipe_state["logs"])
@@ -566,6 +604,11 @@ async def logs_stream():
             if not running and last_idx >= len(logs):
                 yield "event: done\ndata: ok\n\n"
                 return
+            # Keepalive so proxies (e.g. Render) flush the stream
+            last_keepalive += 1
+            if last_keepalive >= 6:  # ~0.5s at 0.08 sleep
+                yield ": keepalive\n\n"
+                last_keepalive = 0
             await asyncio.sleep(0.08)
     return StreamingResponse(
         generate(),
