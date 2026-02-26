@@ -1,0 +1,151 @@
+rubric_name: "Generative_AI_Fullstack_Engineer_20260210"
+role_applied: "Generative AI Full-stack Engineer"
+generated_date: "2026-02-10"
+version: "2.2"
+company: "Oxydata"
+jd_summary: "Full-stack engineer role responsible for building an end-to-end AI recruitment platform spanning React frontends, FastAPI backends, RAG pipelines, vector databases, and production deployment."
+
+# =========================================================
+# 1. SEMANTIC ONTOLOGY
+# =========================================================
+normalized_terms:
+  Python:
+    aliases: ["Python3", "Py", "Python 3.x"]
+    parent_category: "programming_language"
+    child_specifics: ["FastAPI", "Cron Jobs", "AsyncIO"]
+    related_terms: ["RAG", "LLM", "Embeddings"]
+    exclusions: ["Java", "Ruby"]
+    semantic_threshold: 0.9
+
+  React:
+    aliases: ["React.js", "ReactJS"]
+    parent_category: "frontend_framework"
+    child_specifics: ["Hooks", "Component Architecture", "Dashboards"]
+    related_terms: ["JavaScript", "UI_UX"]
+    exclusions: ["Angular", "Vue"]
+    semantic_threshold: 0.88
+
+  FastAPI:
+    aliases: ["Fast API", "FastAPI Framework"]
+    parent_category: "backend_framework"
+    child_specifics: ["REST Endpoints", "Async APIs"]
+    related_terms: ["Python", "REST_API"]
+    exclusions: ["Django", "Flask"]
+    semantic_threshold: 0.9
+
+  RAG:
+    aliases: ["Retrieval Augmented Generation", "RAG Pipeline"]
+    parent_category: "ai_architecture"
+    child_specifics: ["Chunking", "Vector Search", "Grounding"]
+    related_terms: ["Embeddings", "LLM", "pgvector"]
+    exclusions: ["Fine-tuning only"]
+    semantic_threshold: 0.9
+
+  PostgreSQL:
+    aliases: ["Postgres", "PostgreSQL DB"]
+    parent_category: "relational_database"
+    child_specifics: ["pgvector", "Hybrid Search"]
+    related_terms: ["SQL", "Supabase"]
+    exclusions: ["MongoDB"]
+    semantic_threshold: 0.9
+
+  LLM_APIs:
+    aliases: ["OpenAI API", "Claude API", "GPT"]
+    parent_category: "ai_service"
+    child_specifics: ["Prompt Engineering", "Embeddings"]
+    related_terms: ["RAG", "AI Scoring"]
+    exclusions: ["Local-only models"]
+    semantic_threshold: 0.88
+
+# =========================================================
+# 2. COMPLIANCE REQUIREMENTS
+# =========================================================
+compliance:
+  - item: "Bachelor's degree in Computer Science, Software Engineering, AI, or related field"
+  - item: "Based in Ara Damansara, Petaling Jaya or willing to work onsite"
+  - item: "Valid work authorization for Malaysia"
+
+# =========================================================
+# 3. MUST-HAVE REQUIREMENTS (90%)
+# =========================================================
+must_have:
+  - requirement: "End-to-end development of production Generative AI or RAG systems"
+    weight: 20
+  
+  - requirement: "Strong Python development for AI pipelines, backend services, and automation"
+    weight: 15
+  
+  - requirement: "Frontend development with React.js for dashboards and data-driven UI"
+    weight: 12
+  
+  - requirement: "FastAPI backend development with REST API design and data management"
+    weight: 12
+  
+  - requirement: "Hands-on RAG expertise including chunking, embeddings, vector search, and grounding"
+    weight: 15
+  
+  - requirement: "Database architecture using PostgreSQL, Supabase, and pgvector for hybrid search"
+    weight: 8
+  
+  - requirement: "Integration with LLM APIs (Claude, OpenAI) and external systems"
+    weight: 5
+  
+  - requirement: "DevOps fundamentals including Git, testing, cron jobs, and cloud deployment"
+    weight: 3
+
+# =========================================================
+# 4. NICE-TO-HAVE SKILLS (10%)
+# =========================================================
+nice_to_have:
+  - skill: "LangChain or LlamaIndex for advanced RAG and knowledge systems"
+    weight: 3
+  
+  - skill: "CI/CD pipelines for automated testing and deployment"
+    weight: 2
+  
+  - skill: "Docker for containerized development environments"
+    weight: 2
+  
+  - skill: "AI agent frameworks or Model Context Protocol (MCP)"
+    weight: 2
+  
+  - skill: "Experience integrating ATS platforms and email delivery systems"
+    weight: 1
+
+# =========================================================
+# 5. SCORING RULES
+# =========================================================
+scoring_rules:
+  scale:
+    0: "Not demonstrated"
+    1: "Mentioned only"
+    2: "Basic exposure"
+    3: "Hands-on experience"
+    4: "Advanced practical expertise"
+    5: "Expert level with system ownership"
+  calculation: "Weighted average"
+  pass_threshold: 70
+  floor_rule: "Any must-have < 2 triggers FAIL"
+
+# =========================================================
+# 6. BIAS GUARDRAILS
+# =========================================================
+bias_guardrails:
+  protected_attributes:
+    - "age"
+    - "gender"
+    - "race"
+    - "ethnicity"
+    - "religion"
+    - "marital_status"
+    - "disability"
+  enforcement: "Strip protected attributes prior to scoring"
+
+# =========================================================
+# 7. METADATA
+# =========================================================
+metadata:
+  rubric_type: "technical_hiring"
+  seniority_level: "mid"
+  domain: "Generative AI Full-Stack Engineering"
+  location: "Ara Damansara, Petaling Jaya, Malaysia"

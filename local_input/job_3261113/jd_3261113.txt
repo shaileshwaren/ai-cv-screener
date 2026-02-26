@@ -1,0 +1,46 @@
+Position: Senior MS Dynamics CRM Developer
+
+Location: Kuala Lumpur, Malaysia
+
+Work Mode: Remote (must be based in Kuala Lumpur)
+
+Job Type: Permanent
+
+This role is open only to local Malaysians and expats currently based in Kuala Lumpur. Remote work opportunity available within the Kuala Lumpur region.
+
+About the company
+
+Our client is a global leader in digital banking solutions, generating over USD 200 million in annual revenue and operating with more than 1,000 professionals across 15+ countries. As a long-standing Microsoft Solutions Partner and Inner Circle member, they have been optimizing Microsoft's cloud and Dynamics 365 platforms for the financial services industry since 2001, helping institutions harness AI, Copilot, and agentic automation to deliver hyper-personalized experiences, intelligent workflows, and measurable ROI.
+
+We are seeking an experienced Senior MS Dynamics CRM Developer to join our clients global team and contribute to digital transformation in the banking and financial services sector.
+
+Responsibilities
+
+Design and implement CRM solutions using Microsoft Dynamics 365 and Power Platform
+Customize entities, forms, workflows, and reports to meet client needs
+Develop plugins, integrate external systems, and troubleshoot to ensure high performance
+Collaborate across teams to deliver projects on time and within budget
+Provide mentorship to junior developers and contribute to a culture of growth
+Requirements
+
+Must-have:
+
+5 to 7 years of experience in Dynamics CRM development
+Expertise in C#, JavaScript, and CRM SDK
+Experience with Microsoft Dynamics 365 modules such as Sales, Customer Service, and Marketing
+Strong communication and problem-solving skills
+Nice-to-have:
+
+Experience in the banking or financial services industry
+Why Join Us
+
+Remote flexibility to work from anywhere
+Performance-linked bonuses and comprehensive health benefits
+Opportunities for personal development through trainings
+Apply Now: http://www.careers-page.com/oxy/job/V666Y3X8
+
+Reach out: swamy@oxydata.my﻿| +601164111889
+
+Explore more roles: https://oxydata.my/jobs/
+
+#Dynamics365 #CRMSolutions #MicrosoftDynamics #PowerPlatform #SoftwareDevelopment #Fintech #TechJobs #RemoteWork #HiringMalaysia #DigitalBanking

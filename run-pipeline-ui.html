@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Run Pipeline</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; max-width: 520px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    p { color: #555; font-size: 0.9rem; margin-bottom: 1rem; }
+    label { display: block; font-weight: 600; margin-bottom: 0.35rem; }
+    input[type="text"] { width: 100%; padding: 0.5rem; font-size: 1rem; border: 1px solid #ccc; border-radius: 6px; margin-bottom: 0.5rem; }
+    button { margin-top: 0.5rem; padding: 0.6rem 1.2rem; font-size: 1rem; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; }
+    button:hover { background: #1d4ed8; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    #result { margin-top: 1.25rem; padding: 0.75rem; border-radius: 6px; font-size: 0.9rem; display: none; }
+    #result.success { background: #dcfce7; color: #166534; display: block; }
+    #result.error { background: #fee2e2; color: #991b1b; display: block; }
+    .muted { font-size: 0.8rem; color: #888; margin-top: 1.5rem; }
+  </style>
+</head>
+<body>
+  <h1>Run recruitment pipeline</h1>
+  <p>Uses your Render API. Enter job ID(s), click Run, then check Render logs for output.</p>
+  <form id="form">
+    <label for="job_ids">Job ID(s) (comma-separated)</label>
+    <input type="text" id="job_ids" name="job_ids" value="3419430" placeholder="3419430 or 3419430, 3261113" required>
+    <label for="api_url">API URL</label>
+    <input type="text" id="api_url" name="api_url" value="https://recruitment-pipeline-m841.onrender.com" placeholder="https://your-app.onrender.com">
+    <button type="submit" id="btn">Run pipeline</button>
+  </form>
+  <div id="result"></div>
+  <p class="muted">If you see a CORS error, your Render app must allow requests from this page. Deploying this project’s <code>app.py</code> to Render will serve this UI at the same URL so CORS is not needed.</p>
+  <script>
+    document.getElementById("form").onsubmit = async (e) => {
+      e.preventDefault();
+      var btn = document.getElementById("btn");
+      var result = document.getElementById("result");
+      var apiUrl = document.getElementById("api_url").value.trim().replace(/\/$/, "");
+      var jobIds = document.getElementById("job_ids").value.trim();
+      btn.disabled = true;
+      result.className = result.textContent = "";
+      result.style.display = "none";
+      try {
+        var r = await fetch(apiUrl + "/run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ job_ids: jobIds })
+        });
+        var data = await r.json().catch(function() { return {}; });
+        if (r.ok) {
+          result.className = "success";
+          result.textContent = "Pipeline started for job(s): " + (data.job_ids || jobIds) + ". Check Render logs for progress.";
+        } else {
+          result.className = "error";
+          result.textContent = data.detail || data.error || data.message || ("Request failed: " + r.status);
+        }
+      } catch (err) {
+        result.className = "error";
+        result.textContent = "Error: " + err.message + ". If this is a CORS error, deploy this project's app.py to Render so the UI is served from the same origin.";
+      }
+      btn.disabled = false;
+    };
+  </script>
+</body>
+</html>

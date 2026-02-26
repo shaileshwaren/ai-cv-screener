@@ -1,0 +1,177 @@
+rubric_name: "Senior_MS_Dynamics_CRM_Developer_20260211"
+role_applied: "Senior MS Dynamics CRM Developer"
+generated_date: "2026-02-11"
+version: "2.2"
+company: "Oxydata Client (Digital Banking Solutions Leader)"
+jd_summary: "Senior-level Dynamics 365 CRM Developer role focused on designing, customizing, and integrating Microsoft Dynamics 365 and Power Platform solutions for the banking and financial services industry."
+
+# =========================================================
+# 1. SEMANTIC ONTOLOGY
+# =========================================================
+normalized_terms:
+  Dynamics_365:
+    aliases: ["Microsoft Dynamics 365", "D365", "Dynamics CRM", "MS Dynamics"]
+    parent_category: "enterprise_crm_platform"
+    child_specifics: ["Sales", "Customer Service", "Marketing", "Dataverse"]
+    related_terms: ["Power_Platform", "CRM_SDK"]
+    exclusions: ["Salesforce", "HubSpot"]
+    semantic_threshold: 0.90
+
+  Power_Platform:
+    aliases: ["Microsoft Power Platform", "Power Apps", "Power Automate", "Power BI"]
+    parent_category: "low_code_platform"
+    child_specifics: ["Canvas Apps", "Model-driven Apps", "Flows"]
+    related_terms: ["Dynamics_365", "Dataverse"]
+    exclusions: ["OutSystems", "Mendix"]
+    semantic_threshold: 0.88
+
+  C_Sharp:
+    aliases: ["C#", "CSharp", ".NET", "DotNet"]
+    parent_category: "programming_language"
+    child_specifics: ["ASP.NET", ".NET Core", "LINQ"]
+    related_terms: ["CRM_SDK"]
+    exclusions: ["C++", "Java"]
+    semantic_threshold: 0.92
+
+  JavaScript:
+    aliases: ["JS", "ECMAScript", "JavaScript ES6"]
+    parent_category: "programming_language"
+    child_specifics: ["Form Scripting", "Client-side Validation"]
+    related_terms: ["Dynamics_365"]
+    exclusions: ["Java"]
+    semantic_threshold: 0.90
+
+  CRM_SDK:
+    aliases: ["Dynamics CRM SDK", "D365 SDK", "XRM SDK"]
+    parent_category: "development_framework"
+    child_specifics: ["Plugin Development", "Custom Workflow Activities"]
+    related_terms: ["C_Sharp", "Dynamics_365"]
+    exclusions: ["Salesforce Apex"]
+    semantic_threshold: 0.88
+
+  Integration_APIs:
+    aliases: ["REST API", "Web API", "System Integration", "External Systems Integration"]
+    parent_category: "integration_technology"
+    child_specifics: ["OData", "HTTP Services"]
+    related_terms: ["C_Sharp", "Dynamics_365"]
+    exclusions: ["SOAP-only Services"]
+    semantic_threshold: 0.85
+
+  Banking_Financial_Services:
+    aliases: ["Banking Industry", "Financial Services", "Fintech"]
+    parent_category: "industry_domain"
+    child_specifics: ["Digital Banking", "Core Banking Systems"]
+    related_terms: ["Compliance", "Regulatory Systems"]
+    exclusions: ["Healthcare", "Retail"]
+    semantic_threshold: 0.85
+
+  Azure_DevOps:
+    aliases: ["Azure DevOps", "ADO", "DevOps Pipelines"]
+    parent_category: "devops_tooling"
+    child_specifics: ["CI/CD", "Build Pipelines", "Release Pipelines"]
+    related_terms: ["Dynamics_365"]
+    exclusions: ["Jenkins"]
+    semantic_threshold: 0.88
+
+  Microsoft_Certifications:
+    aliases: ["MB-400", "PL-400", "Microsoft Certified"]
+    parent_category: "professional_certification"
+    child_specifics: ["Dynamics 365 Certification", "Power Platform Certification"]
+    related_terms: ["Dynamics_365", "Power_Platform"]
+    exclusions: ["AWS Certification"]
+    semantic_threshold: 0.90
+
+  Copilot_AI:
+    aliases: ["Microsoft Copilot", "AI Automation", "Agentic Automation"]
+    parent_category: "ai_capability"
+    child_specifics: ["Generative AI", "Workflow Automation"]
+    related_terms: ["Dynamics_365", "Power_Platform"]
+    exclusions: ["Standalone Chatbot Projects"]
+    semantic_threshold: 0.85
+
+# =========================================================
+# 2. COMPLIANCE REQUIREMENTS
+# =========================================================
+compliance:
+  - item: "Minimum 5 years of experience in Dynamics CRM development"
+  - item: "Must be based in Kuala Lumpur, Malaysia (remote within KL region)"
+  - item: "Open only to Malaysian citizens or expats currently based in Kuala Lumpur"
+  - item: "Permanent employment availability"
+
+# =========================================================
+# 3. MUST-HAVE REQUIREMENTS (90%)
+# =========================================================
+must_have:
+  - requirement: "Design and implementation of CRM solutions using Microsoft Dynamics 365 and Power Platform"
+    weight: 20
+  
+  - requirement: "Strong C# (.NET) development expertise for Dynamics CRM customization"
+    weight: 15
+  
+  - requirement: "JavaScript development for form customization and client-side scripting"
+    weight: 10
+  
+  - requirement: "Hands-on experience with Dynamics CRM SDK including plugin and custom workflow development"
+    weight: 10
+  
+  - requirement: "Experience with Dynamics 365 modules such as Sales, Customer Service, and Marketing"
+    weight: 10
+  
+  - requirement: "Integration of external systems using REST/Web APIs and troubleshooting performance issues"
+    weight: 10
+  
+  - requirement: "Customization of entities, forms, workflows, and reports to meet business requirements"
+    weight: 5
+  
+  - requirement: "Strong communication skills, cross-team collaboration, and mentorship of junior developers"
+    weight: 10
+
+# =========================================================
+# 4. NICE-TO-HAVE SKILLS (10%)
+# =========================================================
+nice_to_have:
+  - skill: "Experience in banking or financial services industry projects"
+    weight: 3
+  
+  - skill: "Azure DevOps or CI/CD implementation for Dynamics 365 solutions"
+    weight: 2
+  
+  - skill: "Microsoft Dynamics 365 or Power Platform certifications (MB-400, PL-400)"
+    weight: 2
+  
+  - skill: "Exposure to Microsoft Copilot, AI-driven workflows, or agentic automation"
+    weight: 2
+  
+  - skill: "Advanced Power Platform capabilities beyond core CRM customization"
+    weight: 1
+
+# =========================================================
+# 5. SCORING RULES
+# =========================================================
+scoring_rules:
+  scale:
+    0: "Not demonstrated"
+    1: "Mentioned only"
+    2: "Basic exposure"
+    3: "Hands-on experience"
+    4: "Advanced practical expertise"
+    5: "Expert level with leadership"
+  calculation: "Weighted average"
+  pass_threshold: 70
+  floor_rule: "Any must-have < 2 triggers FAIL"
+
+# =========================================================
+# 6. BIAS GUARDRAILS
+# =========================================================
+bias_guardrails:
+  protected_attributes: ["age", "gender", "race", "ethnicity", "religion", "marital_status", "disability"]
+  enforcement: "Strip protected attributes prior to scoring"
+
+# =========================================================
+# 7. METADATA
+# =========================================================
+metadata:
+  rubric_type: "technical_hiring"
+  seniority_level: "senior"
+  domain: "Microsoft Dynamics 365 CRM Development"
+  location: "Kuala Lumpur, Malaysia"

@@ -1,0 +1,8 @@
+requests
+PyYAML
+pypdf
+python-docx
+openai
+argparse
+python-dotenv
+pyinstaller

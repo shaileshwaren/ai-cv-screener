@@ -1,0 +1,70 @@
+# Render Blueprint: Supabase-NocoDB Recruitment Pipeline
+# https://docs.render.com/blueprint-spec
+#
+# 1. Connect this repo in Render Dashboard (New → Blueprint).
+# 2. Add all required env vars (see RENDER_DEPLOY.md or PROJECT_SUMMARY.md).
+# 3. Deploy. Web service will be live; optionally add a Cron Job for scheduled runs.
+
+services:
+  # Web service: health check + POST /run to trigger pipeline
+  - type: web
+    runtime: python
+    name: supabase-nocodb-pipeline
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    plan: free
+    envVars:
+      # Add your secrets in Render Dashboard (Environment). These sync: false
+      # mean Render will prompt you to fill them; do not commit real values.
+      - key: MANATAL_API_TOKEN
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: SUPABASE_DB_URL
+        sync: false
+      - key: NOCODB_TOKEN
+        sync: false
+      - key: NOCODB_BASE_ID
+        sync: false
+      - key: NOCODB_CANDIDATES_TABLE_ID
+        sync: false
+      # Optional: defaults in config.py
+      - key: SUPABASE_STORAGE_BUCKET
+        value: candidate_files
+      - key: TARGET_STAGE_NAME
+        value: Processing
+      - key: MIN_SCORE_FOR_REPORT
+        value: "85"
+
+  # Optional: Cron Job to run pipeline on a schedule (e.g. daily at 6:00 UTC)
+  # Uncomment and set RENDER_CRON_JOB_IDS in Dashboard to your job IDs.
+  # - type: cron
+  #   runtime: python
+  #   name: pipeline-cron
+  #   schedule: "0 6 * * *"
+  #   buildCommand: pip install -r requirements.txt
+  #   startCommand: python run_cron.py
+  #   envVars:
+  #     - key: RENDER_CRON_JOB_IDS
+  #       value: "3419430"
+  #     - key: MANATAL_API_TOKEN
+  #       sync: false
+  #     - key: OPENAI_API_KEY
+  #       sync: false
+  #     - key: SUPABASE_URL
+  #       sync: false
+  #     - key: SUPABASE_KEY
+  #       sync: false
+  #     - key: SUPABASE_DB_URL
+  #       sync: false
+  #     - key: NOCODB_TOKEN
+  #       sync: false
+  #     - key: NOCODB_BASE_ID
+  #       sync: false
+  #     - key: NOCODB_CANDIDATES_TABLE_ID
+  #       sync: false
