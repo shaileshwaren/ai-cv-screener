@@ -202,22 +202,24 @@ RUN_UI_HTML = r"""
       if (pollInterval) clearInterval(pollInterval);
       pollInterval = null;
     }
+    function fetchLogs() {
+      fetch("/logs")
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var el = $("terminal");
+          el.textContent = data.logs || "No output yet.";
+          el.scrollTop = el.scrollHeight;
+          if (!data.running && logPollInterval) {
+            clearInterval(logPollInterval);
+            logPollInterval = null;
+          }
+        })
+        .catch(function() {});
+    }
     function pollLogs() {
       if (logPollInterval) return;
-      logPollInterval = setInterval(function() {
-        fetch("/logs")
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            var el = $("terminal");
-            el.textContent = data.logs || "No output yet.";
-            el.scrollTop = el.scrollHeight;
-            if (!data.running && logPollInterval) {
-              clearInterval(logPollInterval);
-              logPollInterval = null;
-            }
-          })
-          .catch(function() {});
-      }, 1500);
+      fetchLogs();
+      logPollInterval = setInterval(fetchLogs, 400);
     }
     function stopLogPolling() {
       if (logPollInterval) { clearInterval(logPollInterval); logPollInterval = null; }
