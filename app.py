@@ -466,7 +466,8 @@ def _run_pipeline_sync(
     stage: str | None = None,
 ) -> int:
     """Run online_pipeline.py in current process. Returns exit code."""
-    cmd = [sys.executable, str(PIPELINE_SCRIPT), job_ids]
+    # Use unbuffered mode so logs flush line-by-line
+    cmd = [sys.executable, "-u", str(PIPELINE_SCRIPT), job_ids]
     if skip_scoring:
         cmd.append("--skip-scoring")
     if skip_upload:
@@ -474,6 +475,8 @@ def _run_pipeline_sync(
     if skip_reports:
         cmd.append("--skip-reports")
     env = os.environ.copy()
+    # Ensure all Python subprocesses run unbuffered so terminal gets real-time output
+    env["PYTHONUNBUFFERED"] = "1"
     if stage:
         env["TARGET_STAGE_NAME"] = stage
     result = subprocess.run(cmd, cwd=str(HERE), env=env)
@@ -491,7 +494,8 @@ def _run_pipeline_with_logs(
     with _pipe_lock:
         _pipe_state["logs"] = [f"Pipeline started for job(s): {job_ids}", ""]
         _pipe_state["running"] = True
-    cmd = [sys.executable, str(PIPELINE_SCRIPT), job_ids]
+    # Use unbuffered mode so logs flush line-by-line
+    cmd = [sys.executable, "-u", str(PIPELINE_SCRIPT), job_ids]
     if skip_scoring:
         cmd.append("--skip-scoring")
     if skip_upload:
@@ -499,6 +503,8 @@ def _run_pipeline_with_logs(
     if skip_reports:
         cmd.append("--skip-reports")
     env = os.environ.copy()
+    # Ensure all Python subprocesses run unbuffered so terminal gets real-time output
+    env["PYTHONUNBUFFERED"] = "1"
     if stage:
         env["TARGET_STAGE_NAME"] = stage
     try:
