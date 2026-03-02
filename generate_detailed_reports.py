@@ -76,9 +76,14 @@ def update_supabase_html_and_embeddings(
         base_url = supabase.client.storage.from_(Config.SUPABASE_STORAGE_BUCKET).get_public_url(storage_path)
         public_html_url = f"https://htmlpreview.github.io/?{base_url}"
         
-        # 2. Update ai_report_html in candidates table with the Public URL
+        # 2. Update ai_report_html and detailed score/summary in candidates table so table matches report
+        report_score = int(detailed_json.get("overall_score") or detailed_json.get("ai_score") or 0)
         supabase.client.table("candidates").update({
-            "ai_report_html": public_html_url
+            "ai_report_html": public_html_url,
+            "ai_score": report_score,
+            "ai_summary": (detailed_json.get("ai_summary") or "").strip(),
+            "ai_strengths": (detailed_json.get("ai_strengths") or "").strip(),
+            "ai_gaps": (detailed_json.get("ai_gaps") or "").strip(),
         }).eq("candidate_id", candidate_id).execute()
         
         # 3. Extract clean text from HTML for embedding
