@@ -167,7 +167,7 @@ RUN_UI_HTML = r"""
     </section>
     <section class="card" id="tier1-section">
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
-        <h2>Tier 1 Results</h2>
+        <h2>Report Results</h2>
         <span class="badge-pill">High-scoring &amp; rescored</span>
       </div>
       <span class="meta" id="tier1-meta"></span>
@@ -335,11 +335,11 @@ RUN_UI_HTML = r"""
       if (!candidates || !candidates.length) {
         section.style.display = "block";
         tbody.innerHTML = "";
-        meta.textContent = "No Tier 1 candidates with detailed reports yet. (Candidates scoring ≥75 get rescored and a report.)";
+        meta.textContent = "No report results yet. (Candidates scoring ≥75 get rescored and a report.)";
         return;
       }
       section.style.display = "block";
-      meta.textContent = candidates.length + " candidates with detailed reports";
+      meta.textContent = candidates.length + " candidates with reports";
       tbody.innerHTML = "";
       candidates.forEach(function(c, i) {
         var score = c.ai_score != null ? Number(c.ai_score) : 0;
@@ -350,7 +350,7 @@ RUN_UI_HTML = r"""
           "<td><strong>" + (c.full_name || "—") + "</strong><div class=\"meta\">" + (c.email || "") + "</div></td>" +
           "<td><strong>" + (c.job_name || "—") + "</strong><div class=\"meta\">" + (c.org_name || "") + "</div></td>" +
           "<td><span class=\"score-badge " + scoreCl + "\">" + (isNaN(score) ? "—" : score) + "</span></td>" +
-          "<td>Tier 1</td>" +
+          "<td>Report</td>" +
           "<td>" + (c.resume_file ? "<a class=\"link-view\" href=\"" + c.resume_file + "\" target=\"_blank\" rel=\"noopener\">View</a>" : "—") + "</td>" +
           "<td>" + (c.ai_report_html ? "<a class=\"link-view\" href=\"" + c.ai_report_html + "\" target=\"_blank\" rel=\"noopener\">View report</a>" : "N/A") + "</td>";
         tbody.appendChild(row);
@@ -359,20 +359,27 @@ RUN_UI_HTML = r"""
     function pollResults(jobId) {
       stopPolling();
       pollInterval = setInterval(function() {
-        fetch("/results?job_id=" + encodeURIComponent(jobId))
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            var list = data.candidates || [];
-            if (list.length > 0) {
+        Promise.all([
+          fetch("/results?job_id=" + encodeURIComponent(jobId)).then(function(r) { return r.json(); }),
+          fetch("/logs").then(function(r) { return r.json(); })
+        ]).then(function(results) {
+          var data = results[0];
+          var logState = results[1];
+          var list = data.candidates || [];
+          var running = logState && logState.running;
+          if (list.length > 0) {
+            renderStats(list);
+            renderTable(list);
+            var tier = data.tier1 || list.filter(function(c) { return c.ai_report_html; });
+            renderTier1Table(tier);
+            if (running) {
+              showStatus(list.length + " candidate(s) scored. Generating reports for high scorers…", "running");
+            } else {
               stopPolling();
               showStatus("Done! " + list.length + " candidate(s) scored. Click any row to expand details.", "success");
-              renderStats(list);
-              renderTable(list);
-              var tier = data.tier1 || list.filter(function(c) { return c.ai_report_html; });
-              renderTier1Table(tier);
             }
-          })
-          .catch(function() {});
+          }
+        }).catch(function() {});
       }, 5000);
     }
     $("form").addEventListener("submit", function(e) {
