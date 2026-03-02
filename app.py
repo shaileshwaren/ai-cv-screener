@@ -121,7 +121,7 @@ RUN_UI_HTML = r"""
       <form id="form" class="run-row">
         <div class="field">
           <label for="job_id">JOB ID</label>
-          <input type="text" id="job_id" name="job_id" value="3419430" placeholder="e.g. 2911609" required>
+          <input type="text" id="job_id" name="job_id" value="3419430" placeholder="e.g. 3419430 or 3419430, 3261113" required>
         </div>
         <div class="field">
           <label>PIPELINE STAGE</label>
@@ -360,7 +360,7 @@ RUN_UI_HTML = r"""
       stopPolling();
       pollInterval = setInterval(function() {
         Promise.all([
-          fetch("/results?job_id=" + encodeURIComponent(jobId)).then(function(r) { return r.json(); }),
+          fetch("/results?job_ids=" + encodeURIComponent(jobId)).then(function(r) { return r.json(); }),
           fetch("/logs").then(function(r) { return r.json(); })
         ]).then(function(results) {
           var data = results[0];
@@ -403,10 +403,9 @@ RUN_UI_HTML = r"""
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data.status === "accepted" || data.job_ids) {
-            var firstId = jobId.split(",")[0].trim();
             showStatus("Pipeline started. Watch the terminal for live output.", "running");
             startLogStream();
-            pollResults(firstId);
+            pollResults(jobId);
             setTimeout(function() {
               if (pollInterval) {
                 showStatus("Still running. Results will appear when scoring finishes.", "running");
@@ -568,8 +567,11 @@ def health():
 
 
 @app.get("/results")
-def get_results(job_id: str = Query(..., description="Job ID to fetch scored candidates for")):
-    """Return scored candidates for a job from Supabase (for the dashboard UI)."""
+def get_results(
+    job_id: str | None = Query(None, description="Single job ID (legacy)"),
+    job_ids: str | None = Query(None, description="Comma-separated job IDs for multiple jobs"),
+):
+    """Return scored candidates for one or more jobs from Supabase (for the dashboard UI)."""
     try:
         from config import Config
         from supabase import create_client
@@ -577,18 +579,31 @@ def get_results(job_id: str = Query(..., description="Job ID to fetch scored can
         raise HTTPException(status_code=500, detail="Config or Supabase not available")
     if not Config.SUPABASE_URL or not Config.SUPABASE_KEY:
         raise HTTPException(status_code=503, detail="Supabase not configured")
+    raw = (job_ids or job_id or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="job_id or job_ids is required")
+    ids_str = [s.strip() for s in raw.split(",") if s.strip()]
+    try:
+        jids = [int(x) for x in ids_str]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="job_id(s) must be numeric")
+    if not jids:
+        raise HTTPException(status_code=400, detail="At least one job_id is required")
     try:
         client = create_client(Config.SUPABASE_URL, Config.SUPABASE_KEY)
-        jid = int(job_id.strip())
-        r = client.table("candidates").select(
-            "candidate_id, job_id, job_name, org_id, org_name, full_name, email, "
-            "resume_file, match_stage_name, ai_score, ai_summary, ai_strengths, ai_gaps, ai_report_html"
-        ).eq("job_id", jid).order("ai_score", desc=True).execute()
+        r = (
+            client.table("candidates")
+            .select(
+                "candidate_id, job_id, job_name, org_id, org_name, full_name, email, "
+                "resume_file, match_stage_name, ai_score, ai_summary, ai_strengths, ai_gaps, ai_report_html"
+            )
+            .in_("job_id", jids)
+            .order("ai_score", desc=True)
+            .execute()
+        )
         rows = r.data or []
         tier1 = [c for c in rows if c.get("ai_report_html")]
-        return {"candidates": rows, "tier1": tier1, "job_id": jid}
-    except ValueError:
-        raise HTTPException(status_code=400, detail="job_id must be numeric")
+        return {"candidates": rows, "tier1": tier1, "job_id": jids[0], "job_ids": jids}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
