@@ -102,6 +102,14 @@ RUN_UI_HTML = r"""
     #table-wrap { overflow-x: auto; }
     .field-static { padding: 0.5rem 0.75rem; font-size: 0.95rem; color: #4a5568; background: #edf2f7; border-radius: 6px; min-width: 140px; }
     .field-file { padding: 0.35rem 0; font-size: 0.9rem; }
+    .job-rows { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1rem; }
+    .job-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem; padding: 0.75rem; background: #f7fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
+    .job-row .field { min-width: 0; }
+    .job-row .field.job-id { flex: 1; min-width: 120px; }
+    .job-row .field.rubric { flex: 1; min-width: 180px; }
+    .job-row .btn-remove { flex-shrink: 0; padding: 0.5rem 0.75rem; font-size: 0.85rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; color: #718096; cursor: pointer; }
+    .job-row .btn-remove:hover { background: #fed7d7; color: #c53030; border-color: #feb2b2; }
+    .add-job-wrap { margin-bottom: 1rem; }
     .terminal { background: #1a202c; color: #e2e8f0; font-family: ui-monospace, monospace; font-size: 0.8rem; padding: 1rem; border-radius: 8px; min-height: 200px; max-height: 400px; overflow: auto; white-space: pre-wrap; word-break: break-all; margin-bottom: 1rem; }
     .terminal-title { font-size: 0.75rem; font-weight: 600; color: #718096; text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 0.5rem; }
     .badge-pill { display: inline-flex; align-items: center; padding: 0.15rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; background: #ebf8ff; color: #2b6cb0; text-transform: uppercase; letter-spacing: 0.02em; }
@@ -118,24 +126,21 @@ RUN_UI_HTML = r"""
   <main class="container">
     <section class="card">
       <h2>Run AI Candidate Scoring</h2>
-      <form id="form" class="run-row">
-        <div class="field">
-          <label for="job_id">JOB ID</label>
-          <input type="text" id="job_id" name="job_id" value="3419430" placeholder="e.g. 3419430 or 3419430, 3261113" required>
+      <form id="form">
+        <div class="job-rows" id="job-rows"></div>
+        <div class="add-job-wrap">
+          <button type="button" class="btn-run" id="btn-add-job" style="background: #4a5568;">+ Add job</button>
         </div>
-        <div class="field">
-          <label>PIPELINE STAGE</label>
-          <div class="field-static">New Candidates</div>
+        <div class="run-row" style="margin-top: 1rem;">
+          <div class="field">
+            <label>PIPELINE STAGE</label>
+            <div class="field-static">New Candidates</div>
+          </div>
+          <button type="submit" class="btn-run" id="btn">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            Run AI Scoring
+          </button>
         </div>
-        <div class="field">
-          <label for="rubric">RUBRIC</label>
-          <input type="file" id="rubric" name="rubric" accept=".yaml,.yml" class="field-file">
-          <span class="meta">Optional. YAML file for this job (saved as rubric_&lt;Job ID&gt;.yaml)</span>
-        </div>
-        <button type="submit" class="btn-run" id="btn">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-          Run AI Scoring
-        </button>
       </form>
     </section>
     <div class="status-bar" id="status-bar"></div>
@@ -192,7 +197,33 @@ RUN_UI_HTML = r"""
   <script>
     var pollInterval = null;
     var logPollInterval = null;
+    var rowCount = 0;
     function $(id) { return document.getElementById(id); }
+    function addJobRow(jobIdVal) {
+      var container = $("job-rows");
+      var row = document.createElement("div");
+      row.className = "job-row";
+      row.dataset.rowId = (++rowCount);
+      var jobId = "job_id_" + row.dataset.rowId;
+      var rubricId = "rubric_" + row.dataset.rowId;
+      row.innerHTML = '<div class="field job-id"><label for="' + jobId + '">JOB ID</label><input type="text" id="' + jobId + '" class="job-id-input" placeholder="e.g. 3419430" required></div>' +
+        '<div class="field rubric"><label for="' + rubricId + '">RUBRIC (optional)</label><input type="file" id="' + rubricId + '" class="rubric-input" accept=".yaml,.yml"></div>' +
+        '<button type="button" class="btn-remove" aria-label="Remove job">Remove</button>';
+      row.querySelector(".job-id-input").value = jobIdVal || "";
+      row.querySelector(".btn-remove").addEventListener("click", function() {
+        if (container.querySelectorAll(".job-row").length > 1) row.remove();
+      });
+      container.appendChild(row);
+    }
+    function initJobRows() {
+      var container = $("job-rows");
+      container.innerHTML = "";
+      addJobRow("3419430");
+    }
+    document.addEventListener("DOMContentLoaded", function() {
+      initJobRows();
+      $("btn-add-job").addEventListener("click", function() { addJobRow(""); });
+    });
     function showStatus(msg, type) {
       var bar = $("status-bar");
       bar.textContent = msg;
@@ -388,24 +419,34 @@ RUN_UI_HTML = r"""
     }
     $("form").addEventListener("submit", function(e) {
       e.preventDefault();
-      var jobId = $("job_id").value.trim();
-      var rubricInput = $("rubric");
+      var rows = document.querySelectorAll(".job-row");
+      var jobIds = [];
+      var formData = new FormData();
+      formData.append("stage", "New Candidates");
+      rows.forEach(function(row) {
+        var idInput = row.querySelector(".job-id-input");
+        var rubricInput = row.querySelector(".rubric-input");
+        var jid = (idInput && idInput.value) ? idInput.value.trim() : "";
+        if (jid) {
+          jobIds.push(jid);
+          if (rubricInput && rubricInput.files && rubricInput.files[0])
+            formData.append("rubric_" + jid, rubricInput.files[0]);
+        }
+      });
+      var jobIdStr = jobIds.join(", ");
+      if (!jobIdStr) return;
+      formData.append("job_ids", jobIdStr);
       var btn = $("btn");
-      if (!jobId) return;
       btn.disabled = true;
       $("terminal").textContent = "Starting pipeline…";
       showStatus("Running AI scoring. Watch the terminal below.", "running");
-      var formData = new FormData();
-      formData.append("job_ids", jobId);
-      formData.append("stage", "New Candidates");
-      if (rubricInput.files && rubricInput.files[0]) formData.append("rubric", rubricInput.files[0]);
       fetch("/run/form", { method: "POST", body: formData })
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data.status === "accepted" || data.job_ids) {
             showStatus("Pipeline started. Watch the terminal for live output.", "running");
             startLogStream();
-            pollResults(jobId);
+            pollResults(jobIdStr);
             setTimeout(function() {
               if (pollInterval) {
                 showStatus("Still running. Results will appear when scoring finishes.", "running");
@@ -654,25 +695,31 @@ async def logs_stream():
 
 
 @app.post("/run/form")
-async def run_pipeline_form(
-    job_ids: str = Form(..., description="Job ID(s), comma-separated"),
-    stage: str = Form("New Candidates", description="Pipeline stage"),
-    rubric: UploadFile | None = File(None, description="Optional rubric YAML file"),
-):
+async def run_pipeline_form(request: Request):
     """
-    Trigger the pipeline from the dashboard form (supports rubric upload).
-    If rubric file is provided, it is saved as rubrics/rubric_{first_job_id}.yaml before running.
+    Trigger the pipeline from the dashboard form.
+    Form fields: job_ids (comma-separated), stage, and optional rubric_<job_id> file per job.
+    Each rubric_<job_id> is saved as rubrics/rubric_<job_id>.yaml.
     """
-    job_ids_norm = _normalize_job_ids(job_ids)
-    if not job_ids_norm:
+    form = await request.form()
+    job_ids = form.get("job_ids")
+    if not job_ids or not str(job_ids).strip():
         raise HTTPException(status_code=400, detail="job_ids is required")
+    job_ids_norm = _normalize_job_ids(str(job_ids).strip())
+    stage = str(form.get("stage") or "New Candidates").strip()
 
-    first_id = job_ids_norm.split(",")[0].strip()
-    if rubric and rubric.filename:
-        RUBRIC_DIR.mkdir(parents=True, exist_ok=True)
-        path = RUBRIC_DIR / f"rubric_{first_id}.yaml"
-        content = await rubric.read()
-        path.write_bytes(content)
+    RUBRIC_DIR.mkdir(parents=True, exist_ok=True)
+    for key in form.keys():
+        if not key.startswith("rubric_") or key == "rubric_":
+            continue
+        job_id = key[7:].strip()
+        if not job_id:
+            continue
+        value = form.get(key)
+        if value is not None and hasattr(value, "read"):
+            content = await value.read()
+            path = RUBRIC_DIR / f"rubric_{job_id}.yaml"
+            path.write_bytes(content)
 
     def _run():
         _run_pipeline_with_logs(
