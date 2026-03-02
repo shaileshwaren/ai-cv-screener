@@ -165,7 +165,7 @@ RUN_UI_HTML = r"""
         </table>
       </div>
     </section>
-    <section class="card" id="tier1-section">
+    <section class="card" id="tier1-section" style="display: none;">
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
         <h2>Report Results</h2>
         <span class="badge-pill">High-scoring &amp; rescored</span>
@@ -333,9 +333,9 @@ RUN_UI_HTML = r"""
       var meta = $("tier1-meta");
       if (!section || !tbody || !meta) return;
       if (!candidates || !candidates.length) {
-        section.style.display = "block";
+        section.style.display = "none";
         tbody.innerHTML = "";
-        meta.textContent = "No report results yet. (Candidates scoring ≥75 get rescored and a report.)";
+        meta.textContent = "";
         return;
       }
       section.style.display = "block";
@@ -373,10 +373,14 @@ RUN_UI_HTML = r"""
             var tier = data.tier1 || list.filter(function(c) { return c.ai_report_html; });
             renderTier1Table(tier);
             if (running) {
-              showStatus(list.length + " candidate(s) scored. Generating reports for high scorers…", "running");
+              showStatus(list.length + " candidate(s) scored. Generating report...", "running");
             } else {
               stopPolling();
-              showStatus("Done! " + list.length + " candidate(s) scored. Click any row to expand details.", "success");
+              if (tier.length > 0) {
+                showStatus("Done. Reports generated", "success");
+              } else {
+                showStatus(list.length + " candidate(s) scored. Click any row to expand details.", "success");
+              }
             }
           }
         }).catch(function() {});
