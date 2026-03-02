@@ -49,7 +49,8 @@ from utils import extract_resume_text, clip
 # Supabase update function
 # =========================
 def update_supabase_html_and_embeddings(
-    candidate_id: int, 
+    match_id: str,
+    candidate_id: int,
     job_id: int,
     detailed_json: dict,
     html_path: Path,
@@ -57,7 +58,7 @@ def update_supabase_html_and_embeddings(
     supabase: SupabaseClient,
     embedder: EmbeddingClient
 ) -> bool:
-    """Update the ai_report_html field in Supabase and generate embeddings."""
+    """Update the ai_report_html field in Supabase and generate embeddings. Candidates table uses match_id as primary key."""
     
     try:
         html_text = html_path.read_text(encoding="utf-8")
@@ -76,7 +77,7 @@ def update_supabase_html_and_embeddings(
         base_url = supabase.client.storage.from_(Config.SUPABASE_STORAGE_BUCKET).get_public_url(storage_path)
         public_html_url = f"https://htmlpreview.github.io/?{base_url}"
         
-        # 2. Update ai_report_html and detailed score/summary in candidates table so table matches report
+        # 2. Update ai_report_html and detailed score/summary in candidates table (keyed by match_id)
         report_score = int(detailed_json.get("overall_score") or detailed_json.get("ai_score") or 0)
         supabase.client.table("candidates").update({
             "ai_report_html": public_html_url,
@@ -84,7 +85,7 @@ def update_supabase_html_and_embeddings(
             "ai_summary": (detailed_json.get("ai_summary") or "").strip(),
             "ai_strengths": (detailed_json.get("ai_strengths") or "").strip(),
             "ai_gaps": (detailed_json.get("ai_gaps") or "").strip(),
-        }).eq("candidate_id", candidate_id).execute()
+        }).eq("match_id", match_id).execute()
         
         # 3. Extract clean text from HTML for embedding
         import unicodedata
@@ -813,15 +814,17 @@ def main() -> int:
             
             cache_key = candidate.get("cache_key", "")
             
-            # Update Supabase instead of Airtable
+            # Update Supabase (candidates table uses match_id as primary key)
+            match_id = (candidate.get("match_id") or "").strip() or f"{job_id}-{candidate_id}"
             if update_supabase_html_and_embeddings(
-                candidate_id=int(candidate_id),
-                job_id=int(job_id),
-                detailed_json=detailed_json,
-                html_path=html_path,
-                resume_text=resume_text,
-                supabase=supabase,
-                embedder=embedder
+                match_id,
+                int(candidate_id),
+                int(job_id),
+                detailed_json,
+                html_path,
+                resume_text,
+                supabase,
+                embedder,
             ):
                 uploaded_count += 1
                 print(f"  ✓ Uploaded to Supabase & Generated Embeddings")

@@ -120,14 +120,15 @@ def safe_int(val: Any) -> Optional[int]:
 
 
 def transform_row(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Map CSV row to Supabase candidates schema."""
-    candidate_id = safe_int(row.get("candidate_id"))
-    if not candidate_id:
+    """Map CSV row to Supabase candidates schema. Primary key is match_id."""
+    match_id = (row.get("match_id") or "").strip()
+    if not match_id:
         return None
+    candidate_id = safe_int(row.get("candidate_id"))
 
     return {
+        "match_id":         match_id,
         "candidate_id":     candidate_id,
-        "match_id":         row.get("match_id") or None,
         "job_id":           safe_int(row.get("job_id")),
         "job_name":         row.get("job_name") or None,
         "org_id":           safe_int(row.get("organisation_id")),
@@ -158,7 +159,7 @@ def upsert_candidates(supabase: SupabaseClient, records: List[Dict[str, Any]]) -
     logger.info(f"Upserting {len(records)} candidates to Supabase...")
     try:
         supabase.get_client().table("candidates").upsert(
-            records, on_conflict="candidate_id"
+            records, on_conflict="match_id"
         ).execute()
         logger.info("  Upsert via supabase-py OK")
     except Exception as e:
@@ -180,10 +181,10 @@ def _upsert_via_psycopg2(records: List[Dict[str, Any]]) -> None:
     cols = list(records[0].keys())
     col_names = ", ".join(cols)
     placeholders = ", ".join(["%s"] * len(cols))
-    updates = ", ".join(f"{c} = EXCLUDED.{c}" for c in cols if c != "candidate_id")
+    updates = ", ".join(f"{c} = EXCLUDED.{c}" for c in cols if c != "match_id")
     sql = f"""
         INSERT INTO candidates ({col_names}) VALUES ({placeholders})
-        ON CONFLICT (candidate_id) DO UPDATE SET {updates};
+        ON CONFLICT (match_id) DO UPDATE SET {updates};
     """
     rows = [tuple(r[c] for c in cols) for r in records]
     psycopg2.extras.execute_batch(cur, sql, rows)
@@ -305,7 +306,7 @@ def main() -> int:
             skipped += 1
             continue
 
-        cid = str(record["candidate_id"])
+        cid = str(record.get("candidate_id") or record["match_id"])
 
         # Upload local CV if present
         local_path = row.get("resume_local_path", "").strip()
@@ -320,7 +321,7 @@ def main() -> int:
         candidates.append((record, row))
 
     if skipped:
-        print(f"⚠️  Skipped {skipped} rows (missing candidate_id)")
+        print(f"⚠️  Skipped {skipped} rows (missing match_id)")
 
     # Upsert all candidates
     clean_records = [c for c, _ in candidates]
