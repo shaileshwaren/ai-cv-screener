@@ -1,0 +1,208 @@
+{
+  "job_id": "3261113",
+  "role": "Senior MS Dynamics CRM Developer",
+  "company": "Oxydata Client (Digital Banking Solutions Leader)",
+  "rubric_name": "Senior_MS_Dynamics_CRM_Developer_20260211",
+  "generated_date": "2026-02-11",
+  "compliance_requirements": [
+    "Minimum 5 years of experience in Dynamics CRM development",
+    "Must be based in Kuala Lumpur, Malaysia (remote within KL region)",
+    "Open only to Malaysian citizens or expats currently based in Kuala Lumpur",
+    "Permanent employment availability"
+  ],
+  "requirements": {
+    "must_have": [
+      {
+        "id": "MH1",
+        "requirement": "Design and implementation of CRM solutions using Microsoft Dynamics 365 and Power Platform",
+        "weight": 20,
+        "priority": "HIGHEST",
+        "evidence_signals": [
+          "Led or delivered Dynamics 365 customization projects end-to-end",
+          "Experience with both Dynamics CRM and Power Platform components",
+          "Can articulate solution design decisions and tradeoffs"
+        ],
+        "negative_signals": [
+          "Only end-user experience with Dynamics 365, no development work",
+          "Cannot describe plugin architecture or solution design"
+        ]
+      },
+      {
+        "id": "MH2",
+        "requirement": "Strong C# (.NET) development expertise for Dynamics CRM customization",
+        "weight": 15,
+        "priority": "HIGHEST",
+        "evidence_signals": [
+          "Shipped C# plugins or custom workflow activities for Dynamics 365",
+          "Demonstrates good .NET practices: typing, async, error handling, unit testing",
+          "Can explain CRM SDK and plugin execution pipeline"
+        ],
+        "negative_signals": [
+          "No C# experience or only basic scripting without production deployment",
+          "Cannot describe plugin registration, isolation mode, or deployment"
+        ]
+      },
+      {
+        "id": "MH3",
+        "requirement": "JavaScript development for form customization and client-side scripting",
+        "weight": 10,
+        "priority": "HIGH",
+        "evidence_signals": [
+          "Written JavaScript form scripts for Dynamics 365 entity forms",
+          "Experience with Xrm.WebApi for client-side data operations",
+          "Can explain event handling, form customization patterns, and unsupported vs supported methods"
+        ],
+        "negative_signals": [
+          "No JavaScript experience in Dynamics 365 context",
+          "Cannot describe client-side vs server-side scripting tradeoffs"
+        ]
+      },
+      {
+        "id": "MH4",
+        "requirement": "Hands-on experience with Dynamics CRM SDK including plugin and custom workflow development",
+        "weight": 10,
+        "priority": "HIGH",
+        "evidence_signals": [
+          "Registered and deployed plugins with pre/post-operation message steps",
+          "Built custom workflow activities and custom actions",
+          "Understands plugin execution context, security, and sandbox"
+        ],
+        "negative_signals": [
+          "Unfamiliar with plugin registration tool or managed/unmanaged solutions",
+          "Cannot explain early vs late binding or IOrganizationService usage"
+        ]
+      },
+      {
+        "id": "MH5",
+        "requirement": "Experience with Dynamics 365 modules such as Sales, Customer Service, and Marketing",
+        "weight": 10,
+        "priority": "HIGH",
+        "evidence_signals": [
+          "Delivered customizations across multiple Dynamics 365 functional modules",
+          "Understands module-specific entities, business processes, and workflows",
+          "Can configure and customize module-specific OOB functionality"
+        ],
+        "negative_signals": [
+          "Experience limited to a single module with no cross-module understanding",
+          "Cannot describe how modules interact or share data"
+        ]
+      },
+      {
+        "id": "MH6",
+        "requirement": "Integration of external systems using REST/Web APIs and troubleshooting performance issues",
+        "weight": 10,
+        "priority": "HIGH",
+        "evidence_signals": [
+          "Integrated Dynamics 365 with external systems via REST/OData Web API",
+          "Implemented error handling, retry logic, and authentication for integrations",
+          "Can diagnose and resolve performance bottlenecks in plugins or integrations"
+        ],
+        "negative_signals": [
+          "No experience integrating Dynamics 365 with external systems",
+          "Cannot describe API authentication patterns (OAuth, app registrations) for Dynamics 365"
+        ]
+      },
+      {
+        "id": "MH7",
+        "requirement": "Customization of entities, forms, workflows, and reports to meet business requirements",
+        "weight": 5,
+        "priority": "MEDIUM",
+        "evidence_signals": [
+          "Customized entities with custom fields, relationships, and views in Dynamics 365",
+          "Created and modified workflows, business rules, and business process flows",
+          "Built or modified SSRS or FetchXML reports for Dynamics 365"
+        ],
+        "negative_signals": [
+          "Limited to out-of-the-box configuration without custom development",
+          "No experience with custom entity relationships, views, or advanced find"
+        ]
+      },
+      {
+        "id": "MH8",
+        "requirement": "Strong communication skills, cross-team collaboration, and mentorship of junior developers",
+        "weight": 10,
+        "priority": "HIGH",
+        "evidence_signals": [
+          "Led technical discussions with business stakeholders and translated requirements to solutions",
+          "Mentored junior developers and conducted code reviews",
+          "Documented technical solutions for team knowledge sharing"
+        ],
+        "negative_signals": [
+          "No evidence of mentoring, technical leadership, or stakeholder communication",
+          "Works only in isolation without cross-team involvement"
+        ]
+      }
+    ],
+    "nice_to_have": [
+      {
+        "id": "NH1",
+        "skill": "Experience in banking or financial services industry projects",
+        "weight": 3
+      },
+      {
+        "id": "NH2",
+        "skill": "Azure DevOps or CI/CD implementation for Dynamics 365 solutions",
+        "weight": 2
+      },
+      {
+        "id": "NH3",
+        "skill": "Microsoft Dynamics 365 or Power Platform certifications (MB-400, PL-400)",
+        "weight": 2
+      },
+      {
+        "id": "NH4",
+        "skill": "Exposure to Microsoft Copilot, AI-driven workflows, or agentic automation",
+        "weight": 2
+      },
+      {
+        "id": "NH5",
+        "skill": "Advanced Power Platform capabilities beyond core CRM customization",
+        "weight": 1
+      }
+    ]
+  },
+  "semantic_ontology": {
+    "normalized_terms": [
+      "Microsoft Dynamics 365", "Dynamics CRM", "D365", "MS Dynamics",
+      "Power Platform", "Power Apps", "Power Automate", "Power BI",
+      "C#", "CSharp", ".NET", "DotNet", "ASP.NET",
+      "JavaScript", "JS", "CRM SDK", "D365 SDK", "XRM SDK",
+      "REST API", "Web API", "OData", "FetchXML",
+      "Azure DevOps", "CI/CD", "MB-400", "PL-400",
+      "Microsoft Copilot", "Dataverse", "Canvas Apps", "Model-driven Apps"
+    ]
+  },
+  "scoring": {
+    "weight_distribution": {
+      "must_have_total": 90,
+      "nice_to_have_total": 10,
+      "total": 100
+    },
+    "rating_scale": {
+      "0": "No evidence",
+      "1": "Basic familiarity; limited depth",
+      "2": "Working proficiency; has shipped parts",
+      "3": "Strong; shipped in production with clear ownership",
+      "4": "Expert; repeatable success, can mentor and set standards"
+    },
+    "decision_thresholds": {
+      "pass_threshold": 70,
+      "strong_hire": ">= 80",
+      "hire": "70-79",
+      "borderline": "60-69",
+      "no_hire": "< 60"
+    }
+  },
+  "bias_guardrails": [
+    "Ignore protected attributes and non-job-relevant personal information.",
+    "Evaluate on demonstrated outcomes: shipped features, measurable improvements, reliability learnings.",
+    "Accept equivalent experience from open-source, freelance, internships, or non-traditional paths if production-like."
+  ],
+  "metadata": {
+    "version": "3.0",
+    "rubric_type": "technical_hiring",
+    "seniority_level": "senior",
+    "domain": "Microsoft Dynamics 365 CRM Development",
+    "location": "Kuala Lumpur, Malaysia"
+  }
+}

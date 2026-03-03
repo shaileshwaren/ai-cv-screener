@@ -35,7 +35,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import yaml
 from openai import OpenAI
 
 # Import from consolidated modules
@@ -77,14 +76,11 @@ def update_supabase_html_and_embeddings(
         base_url = supabase.client.storage.from_(Config.SUPABASE_STORAGE_BUCKET).get_public_url(storage_path)
         public_html_url = f"https://htmlpreview.github.io/?{base_url}"
         
-        # 2. Update ai_report_html and detailed score/summary in candidates table (keyed by match_id)
+        # 2. Update only report-related fields (ai_report_html, ai_report_score). Leave ai_score unchanged for Candidate Results.
         report_score = int(detailed_json.get("overall_score") or detailed_json.get("ai_score") or 0)
         supabase.client.table("candidates").update({
             "ai_report_html": public_html_url,
-            "ai_score": report_score,
-            "ai_summary": (detailed_json.get("ai_summary") or "").strip(),
-            "ai_strengths": (detailed_json.get("ai_strengths") or "").strip(),
-            "ai_gaps": (detailed_json.get("ai_gaps") or "").strip(),
+            "ai_report_score": report_score,
         }).eq("match_id", match_id).execute()
         
         # 3. Extract clean text from HTML for embedding
@@ -130,233 +126,234 @@ def update_supabase_html_and_embeddings(
 # =========================
 # Rubric parsing
 # =========================
-def load_rubric_yaml(job_id: str) -> dict:
-    """Load rubric YAML for a job."""
+def load_rubric_json(job_id: str) -> dict:
+    """Load rubric JSON for a job."""
     rubric_path = Config.get_rubric_path(job_id)
-    
+
     if not rubric_path.exists():
         raise FileNotFoundError(f"Rubric not found: {rubric_path}")
-    
+
     with rubric_path.open("r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        return json.load(f)
 
 
 def parse_rubric_structure(rubric: dict) -> Dict[str, Any]:
     """Extract structured rubric data.
-    
-    Supports both formats:
-    - Old format: compliance_gates, must_haves, nice_to_haves, global_policies
-    - New format: compliance, must_have, nice_to_have, scoring_rules
+
+    Supports both schemas:
+    - New JSON schema: compliance_requirements (list of strings),
+      requirements.must_have (list with id/evidence_signals/negative_signals),
+      semantic_ontology.normalized_terms (list of strings),
+      scoring.decision_thresholds.pass_threshold
+    - Legacy schema: compliance (list of dicts), must_have/nice_to_have (top-level),
+      normalized_terms (dict of objects), scoring_rules.pass_threshold
     """
-    
-    compliance = []
-    must_have = []
-    nice_to_have = []
-    
+    compliance: List[dict] = []
+    must_have: List[dict] = []
+    nice_to_have: List[dict] = []
+    semantic_terms: List[str] = []
+
     # ===== COMPLIANCE PARSING =====
-    # Try new format first (list with "item" field)
-    compliance_list = rubric.get("compliance", [])
-    if isinstance(compliance_list, list) and compliance_list:
-        for comp in compliance_list:
-            if isinstance(comp, dict):
-                # New format: {"item": "Bachelor's degree..."}
-                compliance.append({
-                    "item": comp.get("item", comp.get("requirement", "")),
-                    "details": comp.get("details", "")
-                })
-            elif isinstance(comp, str):
-                # Simple string format
-                compliance.append({
-                    "item": comp,
-                    "details": ""
-                })
-    
-    # Fall back to old format (nested dict)
+    # New schema: compliance_requirements is a flat list of strings
+    for comp in rubric.get("compliance_requirements", []):
+        if isinstance(comp, str) and comp:
+            compliance.append({"item": comp, "details": ""})
+        elif isinstance(comp, dict):
+            compliance.append({"item": comp.get("item", comp.get("requirement", "")), "details": comp.get("details", "")})
+
+    # Legacy schema: top-level compliance list of dicts
     if not compliance:
-        compliance_gates = rubric.get("compliance_gates", {})
-        if isinstance(compliance_gates, dict):
-            for key, gate_data in compliance_gates.items():
-                if isinstance(gate_data, dict):
-                    compliance.append({
-                        "item": gate_data.get("requirement", key.replace("_", " ").title()),
-                        "details": gate_data.get("details", "")
-                    })
-                elif isinstance(gate_data, str):
-                    compliance.append({
-                        "item": key.replace("_", " ").title(),
-                        "details": gate_data
-                    })
-    
+        for comp in rubric.get("compliance", []):
+            if isinstance(comp, dict):
+                compliance.append({"item": comp.get("item", comp.get("requirement", "")), "details": comp.get("details", "")})
+            elif isinstance(comp, str) and comp:
+                compliance.append({"item": comp, "details": ""})
+
     # ===== MUST-HAVE PARSING =====
-    # Try new format first (must_have)
-    must_have_reqs = rubric.get("must_have", rubric.get("must_haves", []))
-    if isinstance(must_have_reqs, list):
-        for req in must_have_reqs:
-            if isinstance(req, dict):
-                must_have.append({
-                    "requirement": req.get("requirement", ""),
-                    "weight": float(req.get("weight", 0)),
-                    "details": req.get("description", req.get("details", ""))
-                })
-    
+    # New schema: requirements.must_have with id, evidence_signals, negative_signals
+    requirements = rubric.get("requirements", {})
+    mh_source = requirements.get("must_have", []) if isinstance(requirements, dict) else []
+    # Legacy schema: top-level must_have
+    if not mh_source:
+        mh_source = rubric.get("must_have", rubric.get("must_haves", []))
+
+    for i, req in enumerate(mh_source, 1):
+        if isinstance(req, dict):
+            must_have.append({
+                "id": req.get("id", f"MH{i}"),
+                "requirement": req.get("requirement", ""),
+                "weight": float(req.get("weight", 0)),
+                "evidence_signals": req.get("evidence_signals", []),
+                "negative_signals": req.get("negative_signals", []),
+            })
+
     # ===== NICE-TO-HAVE PARSING =====
-    # Try new format first (nice_to_have)
-    nice_to_have_skills = rubric.get("nice_to_have", rubric.get("nice_to_haves", []))
-    if isinstance(nice_to_have_skills, list):
-        for skill in nice_to_have_skills:
-            if isinstance(skill, dict):
-                nice_to_have.append({
-                    "skill": skill.get("skill", ""),
-                    "weight": float(skill.get("weight", 0)),
-                    "details": skill.get("description", skill.get("details", ""))
-                })
-    
-    # ===== PASS THRESHOLD PARSING =====
-    # Try new format first (scoring_rules)
-    pass_threshold = Config.PASS_THRESHOLD  # Default
-    
-    scoring_rules = rubric.get("scoring_rules", {})
-    if isinstance(scoring_rules, dict):
-        pass_threshold = scoring_rules.get("pass_threshold", pass_threshold)
-    
-    # Fall back to old format
+    # New schema: requirements.nice_to_have
+    nth_source = requirements.get("nice_to_have", []) if isinstance(requirements, dict) else []
+    # Legacy schema: top-level nice_to_have
+    if not nth_source:
+        nth_source = rubric.get("nice_to_have", rubric.get("nice_to_haves", []))
+
+    for i, skill in enumerate(nth_source, 1):
+        if isinstance(skill, dict):
+            nice_to_have.append({
+                "id": skill.get("id", f"NH{i}"),
+                "skill": skill.get("skill", ""),
+                "weight": float(skill.get("weight", 0)),
+            })
+
+    # ===== SEMANTIC TERMS =====
+    # New schema: semantic_ontology.normalized_terms (list of strings)
+    sem = rubric.get("semantic_ontology", {})
+    if isinstance(sem, dict):
+        for t in sem.get("normalized_terms", []):
+            if isinstance(t, str) and t:
+                semantic_terms.append(t)
+    # Legacy schema: top-level normalized_terms (dict of objects)
+    if not semantic_terms:
+        for term, details in rubric.get("normalized_terms", {}).items():
+            semantic_terms.append(term)
+            if isinstance(details, dict):
+                semantic_terms.extend(a for a in details.get("aliases", [])[:3] if a)
+
+    # ===== PASS THRESHOLD =====
+    pass_threshold = Config.PASS_THRESHOLD
+    # New schema: scoring.decision_thresholds.pass_threshold
+    scoring = rubric.get("scoring", {})
+    if isinstance(scoring, dict):
+        thresholds = scoring.get("decision_thresholds", {})
+        if isinstance(thresholds, dict) and "pass_threshold" in thresholds:
+            pass_threshold = int(thresholds["pass_threshold"])
+    # Legacy schema: scoring_rules.pass_threshold
     if pass_threshold == Config.PASS_THRESHOLD:
-        global_policies = rubric.get("global_policies", {})
-        if isinstance(global_policies, dict):
-            pass_threshold = global_policies.get("pass_threshold", pass_threshold)
-    
+        sr = rubric.get("scoring_rules", {})
+        if isinstance(sr, dict):
+            pass_threshold = sr.get("pass_threshold", pass_threshold)
+
     return {
         "compliance": compliance,
         "must_have": must_have,
         "nice_to_have": nice_to_have,
-        "pass_threshold": pass_threshold
+        "semantic_terms": semantic_terms,
+        "pass_threshold": pass_threshold,
     }
 
 
 # =========================
-# AI DETAILED SCORING PROMPT (from python8.py)
+# AI DETAILED SCORING PROMPT (merged: python10c primary + python8 additions)
 # =========================
 def build_detailed_scoring_prompt(rubric: dict, rubric_structure: Dict[str, Any], resume_text: str, rubric_version: str) -> str:
-    """Build prompt requesting detailed JSON with item-by-item scores.
-    
-    CRITICAL: Uses parsed rubric_structure (normalized format) as source of truth.
+    """Build Tier 2 detailed scoring prompt.
+
+    Merges python10c (primary: item IDs, evidence/negative signals, 0-4 scale,
+    contribution formula) with python8 additions (ROLE/JD header, semantic
+    guidance, CRITICAL rubric-only instructions, exact item counts, bias guardrails).
     """
-    
-    # Use rubric's jd_summary for context (not raw JD)
-    role_applied = rubric.get('role_applied', '')
-    jd_summary = rubric.get('jd_summary', '')
-    
-    prompt = f"""You are an expert technical recruiter. Evaluate this candidate against the rubric requirements and provide DETAILED item-by-item scoring.
+    role = rubric.get("role", rubric.get("role_applied", ""))
+    jd_obj = rubric.get("jd", {})
+    jd_summary = jd_obj.get("jd_summary", rubric.get("jd_summary", "")) if isinstance(jd_obj, dict) else rubric.get("jd_summary", "")
+    bias_guardrails = rubric.get("bias_guardrails", [])
 
-CRITICAL: The rubric below is the SINGLE SOURCE OF TRUTH for all scoring decisions. Do not add criteria beyond what is explicitly stated in the rubric. Do not make assumptions about requirements not listed.
+    must_have_reqs = rubric_structure.get("must_have", [])
+    nice_to_have_skills = rubric_structure.get("nice_to_have", [])
+    compliance_items = rubric_structure.get("compliance", [])
+    semantic_terms = rubric_structure.get("semantic_terms", [])
+    pass_threshold = rubric_structure.get("pass_threshold", Config.PASS_THRESHOLD)
 
-RUBRIC_VERSION: {rubric_version}
-ROLE: {role_applied}
-JOB SUMMARY: {jd_summary}
+    mh_ids = [r.get("id", f"MH{i+1}") for i, r in enumerate(must_have_reqs)]
+    nh_ids = [s.get("id", f"NH{i+1}") for i, s in enumerate(nice_to_have_skills)]
 
-"""
-    
-    # Add semantic ontology for better understanding of aliases/synonyms
-    normalized_terms = rubric.get('normalized_terms', {})
-    if normalized_terms and isinstance(normalized_terms, dict):
-        prompt += "\n**SEMANTIC GUIDANCE (Aliases & Synonyms):**\n"
-        prompt += "When evaluating skills, recognize these equivalent terms:\n"
-        for term, details in list(normalized_terms.items())[:15]:  # Limit to first 15 to avoid token overflow
-            if isinstance(details, dict):
-                aliases = details.get('aliases', [])
-                if aliases:
-                    prompt += f"- {term}: {', '.join(aliases[:5])}\n"  # Show up to 5 aliases
+    prompt = (
+        "You are an expert technical recruiter. Evaluate this candidate STRICTLY against the rubric.\n\n"
+        "CRITICAL: The rubric is the SINGLE SOURCE OF TRUTH. Do not add criteria beyond what is stated. "
+        "Do not invent requirements not listed.\n\n"
+        f"RUBRIC_VERSION: {rubric_version}\n"
+        f"ROLE: {role}\n"
+        f"JOB SUMMARY: {jd_summary}\n\n"
+    )
+
+    # Semantic guidance (from python8) — helps recognise synonyms
+    if semantic_terms:
+        prompt += "SEMANTIC GUIDANCE (accept equivalent terms for these):\n"
+        prompt += ", ".join(semantic_terms[:30]) + "\n\n"
+
+    # Compliance items
+    if compliance_items:
+        prompt += f"COMPLIANCE REQUIREMENTS (PASS/FAIL — exactly {len(compliance_items)} items):\n"
+        for i, item in enumerate(compliance_items, 1):
+            prompt += f"{i}. {item.get('item', '')}\n"
         prompt += "\n"
-    
-    prompt += "**Requirements from Rubric (Score Against These ONLY):**\n"
-    
-    # Add compliance items - ONLY if compliance section exists
-    compliance_items = rubric_structure.get('compliance', [])
-    if compliance_items and isinstance(compliance_items, list):
-        prompt += "\n**COMPLIANCE (Pass/Fail - Not Scored):**\n"
-        for idx, item in enumerate(compliance_items, 1):
-            item_text = item.get('item', '') if isinstance(item, dict) else str(item)
-            if item_text:
-                prompt += f"{idx}. {item_text}\n"
-    
-    # Add must-have requirements with weights - ONLY if must_have section exists
-    must_have_reqs = rubric_structure.get('must_have', [])
-    if must_have_reqs and isinstance(must_have_reqs, list):
-        prompt += "\n**MUST-HAVE REQUIREMENTS (Critical - Heavily Weighted):**\n"
-        for idx, req in enumerate(must_have_reqs, 1):
-            requirement = req.get('requirement', '') if isinstance(req, dict) else ''
-            weight = req.get('weight', 0) if isinstance(req, dict) else 0
-            if requirement:
-                prompt += f"{idx}. {requirement} (Weight: {weight}%)\n"
-    
-    # Add nice-to-have items - ONLY if nice_to_have section exists
-    nice_to_have_skills = rubric_structure.get('nice_to_have', [])
-    if nice_to_have_skills and isinstance(nice_to_have_skills, list):
-        prompt += "\n**NICE-TO-HAVE SKILLS (Bonus Points):**\n"
-        for idx, skill in enumerate(nice_to_have_skills, 1):
-            skill_name = skill.get('skill', '') if isinstance(skill, dict) else ''
-            weight = skill.get('weight', 0) if isinstance(skill, dict) else 0
-            if skill_name:
-                prompt += f"{idx}. {skill_name} (Weight: {weight}%)\n"
-    
-    prompt += f"""
 
-**Candidate's Resume:**
-{clip(resume_text, Config.MAX_RESUME_CHARS)}
+    # Must-have requirements with IDs and signals (python10c style)
+    if must_have_reqs:
+        prompt += f"MUST-HAVE REQUIREMENTS — use EXACTLY these IDs in order: {mh_ids}\n"
+        for req in must_have_reqs:
+            rid = req.get("id", "")
+            requirement = req.get("requirement", "")
+            weight = req.get("weight", 0)
+            signals = req.get("evidence_signals", [])
+            neg_signals = req.get("negative_signals", [])
+            prompt += f"\n{rid}: {requirement} (weight: {weight}%)\n"
+            if signals:
+                prompt += f"  Evidence signals: {'; '.join(signals)}\n"
+            if neg_signals:
+                prompt += f"  Red flags: {'; '.join(neg_signals)}\n"
+        prompt += "\n"
 
-**SCORING SCALE (0-5):**
-- 5 = Exceptional - Exceeds requirements significantly, proven track record
-- 4 = Strong - Clearly meets requirements with solid evidence
-- 3 = Adequate - Meets minimum requirements
-- 2 = Weak - Partially meets requirements, notable gaps
-- 1 = Poor - Minimal evidence, major concerns
-- 0 = None - No evidence of this requirement/skill
+    # Nice-to-have skills
+    if nice_to_have_skills:
+        prompt += f"NICE-TO-HAVE SKILLS — use EXACTLY these IDs in order: {nh_ids}\n"
+        for skill in nice_to_have_skills:
+            sid = skill.get("id", "")
+            skill_text = skill.get("skill", "")
+            weight = skill.get("weight", 0)
+            prompt += f"{sid}: {skill_text} (weight: {weight}%)\n"
+        prompt += "\n"
 
-**CRITICAL INSTRUCTIONS:**
-1. The rubric above is the EXHAUSTIVE list of ALL requirements - if it's not in the rubric, don't score it
-2. Score EVERY requirement/skill listed above - do NOT add, remove, or modify any requirements
-3. Use the EXACT requirement text from the rubric above - do NOT rephrase or create new requirements
-4. The compliance array must have EXACTLY {len(compliance_items)} items
-5. The must_have array must have EXACTLY {len(must_have_reqs)} items with the EXACT requirement text
-6. The nice_to_have array must have EXACTLY {len(nice_to_have_skills)} items with the EXACT skill text
-7. Do NOT invent or add requirements that are not in the rubric above
-8. Do NOT consider factors not explicitly stated in the rubric (e.g., don't score "passion" unless rubric requires it)
-9. Base scores ONLY on evidence in resume vs. rubric requirements
-10. Respond with ONLY valid JSON. No preamble, no markdown, no explanation.
+    prompt += f"CANDIDATE RESUME:\n{clip(resume_text, Config.MAX_RESUME_CHARS)}\n\n"
 
-**Required JSON Structure:**
-{{
-  "compliance": [
-    {{"item": "EXACT text from rubric", "status": "PASS|FAIL|NOT_ASSESSED", "details": "brief reason"}}
-  ],
-  "must_have": [
-    {{"requirement": "EXACT text from rubric", "score": 0-5, "weight": number, "evidence": "specific evidence from resume"}}
-  ],
-  "nice_to_have": [
-    {{"skill": "EXACT text from rubric", "score": 0-5, "weight": number, "evidence": "specific evidence from resume"}}
-  ],
-  "overall_score": calculated_score,
-  "ai_score": calculated_score,
-  "ai_summary": "2-3 sentence overall assessment (max 60 words)",
+    prompt += (
+        "SCORING SCALE (0-4):\n"
+        "0 = No evidence\n"
+        "1 = Basic familiarity; limited depth\n"
+        "2 = Working proficiency; has shipped parts\n"
+        "3 = Strong; shipped in production with clear ownership\n"
+        "4 = Expert; repeatable success, can mentor and set standards\n\n"
+        "SCORING FORMULA: contribution = (score / 4) × weight\n"
+        "overall_score = sum of all contributions (normalised to 0-100)\n\n"
+        "CRITICAL INSTRUCTIONS:\n"
+        f"1. The must_have array MUST contain EXACTLY {len(must_have_reqs)} items using IDs {mh_ids}.\n"
+        f"2. The nice_to_have array MUST contain EXACTLY {len(nice_to_have_skills)} items using IDs {nh_ids}.\n"
+        f"3. The compliance array MUST contain EXACTLY {len(compliance_items)} items.\n"
+        "4. Use the EXACT item ID, requirement text, and weight from the rubric. Do NOT rephrase.\n"
+        "5. Provide specific evidence quotes from the resume for each score.\n"
+        f"6. Floor rule: if ANY must-have score < 2, set floor_triggered=true and recommendation=\"FAIL\".\n"
+        f"7. Pass threshold: overall_score >= {pass_threshold} (unless floor triggered).\n"
+        "8. overall_score MUST equal sum of (score/4 × weight) for all items.\n"
+        "9. Evaluate on demonstrated outcomes only. Ignore protected attributes (age, gender, race, etc.).\n"
+        "10. Respond with ONLY valid JSON. No markdown, no code blocks, no preamble.\n"
+    )
+
+    if bias_guardrails:
+        guardrail_texts = [str(g) for g in (bias_guardrails if isinstance(bias_guardrails, list) else [])[:3]]
+        if guardrail_texts:
+            prompt += f"\nBIAS GUARDRAILS: {' '.join(guardrail_texts)}\n"
+
+    prompt += """
+REQUIRED JSON OUTPUT:
+{
+  "compliance": [{"requirement": "EXACT text", "status": "PASS|FAIL", "evidence": "brief reason"}],
+  "must_have": [{"id": "MHx", "requirement": "EXACT text", "score": 0-4, "weight": N, "contribution": N, "evidence": "specific quote"}],
+  "nice_to_have": [{"id": "NHx", "skill": "EXACT text", "score": 0-4, "weight": N, "contribution": N, "evidence": "specific quote"}],
+  "overall_score": N,
+  "ai_score": N,
+  "ai_summary": "2-3 sentence assessment (max 60 words)",
   "ai_strengths": "comma-separated strengths",
   "ai_gaps": "comma-separated gaps",
   "recommendation": "PASS|FAIL",
-  "floor_triggered": boolean
-}}
+  "floor_triggered": false
+}"""
 
-**IMPORTANT RULES:**
-1. Score EVERY requirement/skill listed above (don't skip any)
-2. Use EXACT requirement text - do NOT create new ones or modify existing ones
-3. Provide specific evidence from the resume (not generic statements)
-4. overall_score = (sum of weighted must-have scores) + (sum of weighted nice-to-have scores)
-5. ai_score = overall_score (both should be the same integer 0-100)
-6. Floor rule: If ANY must-have scores < 2, set floor_triggered = true and recommendation = FAIL
-7. Pass threshold: overall_score >= 70 (unless floor triggered)
-8. ai_summary must be concise (max 60 words)
-9. ai_strengths and ai_gaps should be comma-separated strings
-
-Respond with ONLY the JSON object using the EXACT requirements from the rubric above, nothing else."""
-    
     return prompt
 
 
@@ -438,6 +435,31 @@ def llm_score_detailed(
 
 
 # =========================
+# Server-side score recomputation (0-4 scale)
+# =========================
+def _recompute_score(data: dict) -> float:
+    """Recalculate overall_score in Python to override LLM arithmetic.
+
+    Uses the 0-4 rating scale: contribution = (score / 4) × weight.
+    Caps at 100.0.
+    """
+    total = 0.0
+    for item in data.get("must_have", []):
+        s = float(item.get("score", 0) or 0)
+        w = float(item.get("weight", 0) or 0)
+        contrib = round((s / 4.0) * w, 4)
+        item["contribution"] = contrib
+        total += contrib
+    for item in data.get("nice_to_have", []):
+        s = float(item.get("score", 0) or 0)
+        w = float(item.get("weight", 0) or 0)
+        contrib = round((s / 4.0) * w, 4)
+        item["contribution"] = contrib
+        total += contrib
+    return round(min(total, 100.0), 1)
+
+
+# =========================
 # Enhanced JSON generation with AI scoring
 # =========================
 def generate_detailed_json_with_ai(
@@ -448,201 +470,355 @@ def generate_detailed_json_with_ai(
     openai_client: OpenAI
 ) -> Dict[str, Any]:
     """Generate detailed JSON by re-scoring with AI for granular breakdown.
-    
-    CRITICAL: Uses parsed rubric_structure (normalized format) as source of truth.
+
+    After the LLM returns, applies server-side score recomputation and the
+    hard-coded floor rule so that final scores and recommendations are reliable.
     """
-    
-    print(f"    🤖 Re-scoring with AI for detailed breakdown...")
-    
-    # Get detailed AI scoring
-    rubric_version = rubric.get("version", "1.0")
+    print(f"    Re-scoring with AI for detailed breakdown...")
+
+    # Version is in metadata.version for new JSON schema; fall back to top-level
+    rubric_version = str(
+        rubric.get("metadata", {}).get("version")
+        or rubric.get("version", "1.0")
+    )
     ai_data = llm_score_detailed(openai_client, rubric, rubric_structure, rubric_version, resume_text)
-    
+
+    # ── Server-side score recomputation ──────────────────────────────────────
+    recomputed = _recompute_score(ai_data)
+
+    # ── Hard-coded floor rule ─────────────────────────────────────────────────
+    pass_threshold = rubric_structure.get("pass_threshold", Config.PASS_THRESHOLD)
+    floor_triggered = any(
+        float(item.get("score", 0) or 0) < 2
+        for item in ai_data.get("must_have", [])
+    )
+    recommendation = "FAIL" if (floor_triggered or recomputed < pass_threshold) else "PASS"
+
+    ai_data["floor_triggered"] = floor_triggered
+    ai_data["recommendation"] = recommendation
+    ai_data["overall_score"] = recomputed
+    ai_data["ai_score"] = int(round(recomputed))
+
     # Parse strengths and gaps into lists
     ai_strengths = ai_data.get("ai_strengths", "")
     ai_gaps = ai_data.get("ai_gaps", "")
     strengths_list = [s.strip() for s in ai_strengths.split(",") if s.strip()]
     gaps_list = [g.strip() for g in ai_gaps.split(",") if g.strip()]
-    
+
     # Calculate actual weights from rubric (not hardcoded)
     must_have_total_weight = sum(float(item.get("weight", 0)) for item in rubric_structure["must_have"])
     nice_to_have_total_weight = sum(float(item.get("weight", 0)) for item in rubric_structure["nice_to_have"])
-    
-    # Get company name from rubric (not hardcoded)
+
     company_name = rubric.get("company", "Recruitment System")
-    
-    # Build complete JSON with REAL AI data (no placeholders!)
+
     detailed_json = {
-        # Core fields matching example format (ALL FROM AI!)
         "compliance": ai_data.get("compliance", []),
         "must_have": ai_data.get("must_have", []),
         "nice_to_have": ai_data.get("nice_to_have", []),
-        "overall_score": ai_data.get("overall_score", 0),
-        "ai_score": ai_data.get("ai_score", 0),
+        "overall_score": recomputed,
+        "ai_score": int(round(recomputed)),
         "ai_summary": ai_data.get("ai_summary", ""),
         "ai_strengths": ai_strengths,
         "ai_gaps": ai_gaps,
-        "recommendation": ai_data.get("recommendation", "FAIL"),
-        "floor_triggered": ai_data.get("floor_triggered", False),
-        
-        # Additional fields for HTML rendering
+        "recommendation": recommendation,
+        "floor_triggered": floor_triggered,
         "candidate_name": candidate.get("full_name", ""),
         "candidate_id": candidate.get("candidate_id", ""),
         "position": candidate.get("job_name", ""),
-        "pass_threshold": rubric_structure["pass_threshold"],
+        "pass_threshold": pass_threshold,
         "report_date": datetime.now().strftime("%B %d, %Y"),
         "generated_at": datetime.now().isoformat(),
         "generated_by": f"{company_name} Recruitment System",
-        
-        # Parsed strengths and gaps for HTML tags
         "key_strengths": strengths_list,
         "development_areas": gaps_list,
-        
-        # Weights calculated from rubric (not hardcoded!)
         "must_have_weight": int(must_have_total_weight),
         "nice_to_have_weight": int(nice_to_have_total_weight),
     }
-    
+
     return detailed_json
 
 
 # =========================
-# HTML generation (same as before - shortened for space)
+# HTML report generation (matches Candidate Evaluation reference design)
 # =========================
 def generate_html_report(detailed_json: Dict[str, Any]) -> str:
-    """Generate professional HTML report."""
-    
+    """Generate HTML report matching the reference Candidate Evaluation design."""
+
     candidate_name = detailed_json.get("candidate_name", "Candidate")
     position = detailed_json.get("position", "Position")
     overall_score = detailed_json.get("overall_score", 0)
     recommendation = detailed_json.get("recommendation", "REVIEW")
     report_date = detailed_json.get("report_date", datetime.now().strftime("%B %d, %Y"))
     executive_summary = detailed_json.get("ai_summary", "")
-    candidate_id = detailed_json.get("candidate_id", "")
-    generated_by = detailed_json.get("generated_by", "Recruitment System")
-    
+
     key_strengths = detailed_json.get("key_strengths", [])
     development_areas = detailed_json.get("development_areas", [])
     compliance = detailed_json.get("compliance", [])
     must_have = detailed_json.get("must_have", [])
     nice_to_have = detailed_json.get("nice_to_have", [])
-    
-    badge_class = "badge-pass" if recommendation == "PASS" else "badge-fail"
-    
-    def get_score_dot(score: float, max_score: float = 5) -> str:
-        ratio = score / max_score
-        if ratio >= 0.8:
-            return "dot-green"
+    must_have_weight = detailed_json.get("must_have_weight", 90)
+    nice_to_have_weight = detailed_json.get("nice_to_have_weight", 10)
+
+    if recommendation == "PASS":
+        badge_class = "badge-pass"
+    elif recommendation == "REVIEW":
+        badge_class = "badge-review"
+    else:
+        badge_class = "badge-fail"
+
+    def score_color(score: float, max_score: float = 4) -> str:
+        ratio = score / max_score if max_score > 0 else 0
+        if ratio >= 1.0:
+            return "#15803d"   # Expert (4/4)
+        elif ratio >= 0.75:
+            return "#16a34a"   # Strong (3/4)
         elif ratio >= 0.5:
-            return "dot-yellow"
+            return "#ca8a04"   # Working (2/4)
         else:
-            return "dot-red"
-    
-    def get_status_class(status: str) -> str:
-        if status == "PASS":
-            return "status-pass"
-        elif status == "FAIL":
-            return "status-fail"
-        else:
-            return ""
-    
-    html = f"""<!doctype html>
+            return "#dc2626"   # Weak/None (0-1/4)
+
+    html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Candidate Report - {candidate_name}</title>
-  <style>
-    * {{ box-sizing: border-box; }}
-    body {{ margin: 0; padding: 20px; font-family: -apple-system, system-ui, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #f5f7fa; color: #2c3e50; line-height: 1.6; }}
-    .container {{ max-width: 900px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 2px 20px rgba(0,0,0,0.08); }}
-    h1 {{ margin: 0 0 10px 0; font-size: 32px; color: #1a1a1a; font-weight: 700; }}
-    .subtitle {{ color: #7f8c8d; font-size: 16px; margin-bottom: 30px; }}
-    .info-grid {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 30px; padding: 20px; background: #ecf0f1; border-radius: 8px; }}
-    .info-label {{ font-size: 12px; color: #7f8c8d; font-weight: 600; text-transform: uppercase; }}
-    .info-value {{ font-size: 18px; font-weight: 600; margin-top: 5px; }}
-    .score-badge {{ display: inline-block; padding: 8px 18px; border-radius: 20px; font-weight: 700; font-size: 18px; }}
-    .badge-pass {{ background: #d4edda; color: #155724; border: 2px solid #28a745; }}
-    .badge-fail {{ background: #f8d7da; color: #721c24; border: 2px solid #dc3545; }}
-    h2 {{ font-size: 20px; margin: 30px 0 15px 0; padding-bottom: 10px; border-bottom: 2px solid #e1e8ed; font-weight: 600; }}
-    .summary-box {{ background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #3498db; }}
-    table {{ width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px; }}
-    th {{ background: #34495e; color: white; padding: 14px 12px; text-align: left; font-weight: 600; }}
-    td {{ padding: 14px 12px; border-bottom: 1px solid #e1e8ed; vertical-align: top; }}
-    tr:nth-child(even) {{ background: #f8f9fa; }}
-    tr:hover {{ background: #ecf0f1; }}
-    .score-dot {{ display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }}
-    .dot-green {{ background: #27ae60; box-shadow: 0 0 0 3px rgba(39, 174, 96, 0.2); }}
-    .dot-yellow {{ background: #f39c12; box-shadow: 0 0 0 3px rgba(243, 156, 18, 0.2); }}
-    .dot-red {{ background: #e74c3c; box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.2); }}
-    .must-have th {{ background: #e74c3c; }}
-    .nice-to-have th {{ background: #3498db; }}
-    .compliance th {{ background: #95a5a6; }}
-    .status-pass {{ color: #27ae60; font-weight: 600; }}
-    .status-fail {{ color: #e74c3c; font-weight: 600; }}
-    .tag {{ display: inline-block; padding: 8px 14px; margin: 4px; background: #3498db; color: white; border-radius: 6px; font-size: 13px; font-weight: 500; }}
-    .tag.gap {{ background: #e74c3c; }}
-    .summary-label {{ font-weight: 600; margin: 20px 0 10px; display: block; font-size: 15px; }}
-    .footer {{ margin-top: 40px; padding-top: 20px; border-top: 1px solid #e1e8ed; text-align: center; color: #7f8c8d; font-size: 12px; }}
-    @media print {{ body {{ background: white; }} .container {{ box-shadow: none; }} }}
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Candidate Evaluation - {candidate_name}</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #1f2937; background: #f9fafb; padding: 20px; }}
+        .container {{ max-width: 900px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 30px; }}
+        .header {{ margin-bottom: 30px; }}
+        .candidate-name {{ font-size: 28px; font-weight: 700; color: #111827; margin-bottom: 5px; }}
+        .position-title {{ font-size: 14px; color: #6b7280; margin-bottom: 20px; }}
+        .info-boxes {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 30px; }}
+        .info-box {{ background: #f3f4f6; padding: 15px; border-radius: 6px; }}
+        .info-label {{ font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }}
+        .info-value {{ font-size: 16px; font-weight: 600; color: #111827; }}
+        .badge {{ display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 12px; font-weight: 600; color: white; }}
+        .badge-pass {{ background: #16a34a; }}
+        .badge-fail {{ background: #dc2626; }}
+        .badge-review {{ background: #ea580c; }}
+        .score-large {{ font-size: 32px; font-weight: 700; color: #111827; }}
+        .section {{ margin-bottom: 30px; }}
+        .section-title {{ font-size: 16px; font-weight: 700; color: #111827; margin-bottom: 12px; }}
+        .section-content {{ font-size: 14px; color: #4b5563; line-height: 1.7; }}
+        table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; }}
+        thead {{ background: #9ca3af; color: white; }}
+        thead.must-have {{ background: #3b82f6; }}
+        thead.nice-to-have {{ background: #3b82f6; }}
+        th {{ padding: 10px; text-align: left; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.3px; }}
+        td {{ padding: 12px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }}
+        tr:last-child td {{ border-bottom: none; }}
+        .requirement-text {{ font-weight: 500; color: #111827; margin-bottom: 3px; }}
+        .score-cell {{ font-weight: 700; font-size: 14px; }}
+        .weight-cell {{ color: #6b7280; }}
+        .evidence-text {{ font-size: 12px; color: #6b7280; font-style: italic; }}
+        .tags {{ display: flex; flex-wrap: wrap; gap: 8px; margin: 15px 0; }}
+        .tag {{ background: #16a34a; color: white; padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 500; }}
+        .tag-red {{ background: #dc2626; }}
+        .interview-questions {{ background: #f9fafb; padding: 20px; border-radius: 6px; border-left: 4px solid #3b82f6; }}
+        .interview-questions ul {{ list-style: none; padding-left: 0; }}
+        .interview-questions li {{ padding: 10px 0; padding-left: 25px; position: relative; font-size: 14px; color: #374151; }}
+        .interview-questions li:before {{ content: "•"; position: absolute; left: 10px; color: #3b82f6; font-weight: bold; font-size: 18px; }}
+        @media print {{ body {{ background: white; }} .container {{ box-shadow: none; }} }}
+    </style>
 </head>
 <body>
-  <div class="container">
-    <h1>{candidate_name}</h1>
-    <div class="subtitle">Candidate Evaluation Report</div>
-    
-    <div class="info-grid">
-      <div><div class="info-label">Position</div><div class="info-value">{position}</div></div>
-      <div><div class="info-label">Overall Score</div><div class="info-value" style="color: #27ae60;">{overall_score}/100</div></div>
-      <div><div class="info-label">Recommendation</div><div class="info-value"><span class="score-badge {badge_class}">{recommendation}</span></div></div>
-      <div><div class="info-label">Report Date</div><div class="info-value">{report_date}</div></div>
-    </div>
-    
-    <h2>Executive Summary</h2>
-    <div class="summary-box">{executive_summary}</div>
+    <div class="container">
+        <div class="header">
+            <h1 class="candidate-name">{candidate_name}</h1>
+            <p class="position-title">Candidate Evaluation Report</p>
+        </div>
+
+        <div class="info-boxes">
+            <div class="info-box">
+                <div class="info-label">Position</div>
+                <div class="info-value">{position}</div>
+                <div style="margin-top: 8px;">
+                    <span class="badge {badge_class}">{recommendation}</span>
+                </div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">Overall Score</div>
+                <div class="score-large">{overall_score}</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">Report Date</div>
+                <div class="info-value">{report_date}</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">Executive Summary</h2>
+            <p class="section-content">{executive_summary}</p>
+        </div>
 """
-    
+
+    # Compliance section
     if compliance:
-        html += '<h2>Compliance Requirements</h2><table class="compliance"><thead><tr><th style="width: 35%">Requirement</th><th style="width: 15%">Status</th><th style="width: 50%">Details</th></tr></thead><tbody>'
+        html += """
+        <div class="section">
+            <h2 class="section-title">Compliance Requirements</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 50%;">Requirement</th>
+                        <th style="width: 15%;">Status</th>
+                        <th style="width: 35%;">Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+"""
         for item in compliance:
+            req_text = item.get("requirement", item.get("item", ""))
             status = item.get("status", "NOT_ASSESSED")
-            status_class = get_status_class(status)
-            html += f'<tr><td><strong>{item.get("item", "")}</strong></td><td class="{status_class}" style="text-align: center;">{status}</td><td style="font-size: 13px;">{item.get("details", "")}</td></tr>'
-        html += '</tbody></table>'
-    
+            details = item.get("evidence", item.get("details", ""))
+            if status == "PASS":
+                b_cls, b_lbl = "badge-pass", "COMPLY"
+            elif status == "FAIL":
+                b_cls, b_lbl = "badge-fail", "REVIEW"
+            else:
+                b_cls, b_lbl = "badge-review", status
+            html += f"""
+                    <tr>
+                        <td class="requirement-text">{req_text}</td>
+                        <td><span class="badge {b_cls}">{b_lbl}</span></td>
+                        <td class="evidence-text">{details}</td>
+                    </tr>"""
+        html += """
+                </tbody>
+            </table>
+        </div>"""
+
+    # Must-have section
     if must_have:
-        html += f'<h2>Must-Have Requirements ({detailed_json.get("must_have_weight", 90)}% Weight)</h2><table class="must-have"><thead><tr><th style="width: 38%">Requirement</th><th style="width: 10%">Score</th><th style="width: 8%">Weight</th><th style="width: 44%">Evidence</th></tr></thead><tbody>'
+        html += f"""
+        <div class="section">
+            <h2 class="section-title">Must-Have Requirements ({must_have_weight}% Weight)</h2>
+            <table>
+                <thead class="must-have">
+                    <tr>
+                        <th style="width: 40%;">Requirement</th>
+                        <th style="width: 10%;">Score</th>
+                        <th style="width: 10%;">Weight</th>
+                        <th style="width: 40%;">Evidence</th>
+                    </tr>
+                </thead>
+                <tbody>"""
         for item in must_have:
-            score = item.get("score", 0)
+            score = float(item.get("score", 0))
             weight = item.get("weight", 0)
-            dot_class = get_score_dot(score, 5)
-            html += f'<tr><td><strong>{item.get("requirement", "")}</strong></td><td style="text-align: center; font-weight: 600;"><span class="score-dot {dot_class}"></span>{score}/5</td><td style="text-align: center;">{weight}%</td><td style="font-size: 13px;">{item.get("evidence", "")}</td></tr>'
-        html += '</tbody></table>'
-    
+            evidence = item.get("evidence", "")
+            color = score_color(score)
+            html += f"""
+                    <tr>
+                        <td class="requirement-text">{item.get("requirement", "")}</td>
+                        <td class="score-cell" style="color: {color};">{int(score)}/4</td>
+                        <td class="weight-cell">{weight}%</td>
+                        <td class="evidence-text">{evidence}</td>
+                    </tr>"""
+        html += """
+                </tbody>
+            </table>
+        </div>"""
+
+    # Nice-to-have section
     if nice_to_have:
-        html += f'<h2>Nice-to-Have Skills ({detailed_json.get("nice_to_have_weight", 10)}% Weight)</h2><table class="nice-to-have"><thead><tr><th style="width: 38%">Skill</th><th style="width: 10%">Score</th><th style="width: 8%">Weight</th><th style="width: 44%">Evidence</th></tr></thead><tbody>'
+        html += f"""
+        <div class="section">
+            <h2 class="section-title">Nice-to-Have Skills ({nice_to_have_weight}% Weight)</h2>
+            <table>
+                <thead class="nice-to-have">
+                    <tr>
+                        <th style="width: 40%;">Skill</th>
+                        <th style="width: 10%;">Score</th>
+                        <th style="width: 10%;">Weight</th>
+                        <th style="width: 40%;">Evidence</th>
+                    </tr>
+                </thead>
+                <tbody>"""
         for item in nice_to_have:
-            score = item.get("score", 0)
+            score = float(item.get("score", 0))
             weight = item.get("weight", 0)
-            dot_class = get_score_dot(score, 5)
-            html += f'<tr><td><strong>{item.get("skill", "")}</strong></td><td style="text-align: center; font-weight: 600;"><span class="score-dot {dot_class}"></span>{score}/5</td><td style="text-align: center;">{weight}%</td><td style="font-size: 13px;">{item.get("evidence", "")}</td></tr>'
-        html += '</tbody></table>'
-    
-    html += '<h2>Assessment Summary</h2>'
+            evidence = item.get("evidence", "")
+            color = score_color(score)
+            html += f"""
+                    <tr>
+                        <td class="requirement-text">{item.get("skill", "")}</td>
+                        <td class="score-cell" style="color: {color};">{int(score)}/4</td>
+                        <td class="weight-cell">{weight}%</td>
+                        <td class="evidence-text">{evidence}</td>
+                    </tr>"""
+        html += """
+                </tbody>
+            </table>
+        </div>"""
+
+    # Assessment Summary
+    html += """
+        <div class="section">
+            <h2 class="section-title">Assessment Summary</h2>"""
     if key_strengths:
-        html += '<span class="summary-label">🌟 Key Strengths:</span><div>'
-        for strength in key_strengths:
-            html += f'<span class="tag">{strength}</span>'
-        html += '</div>'
-    
+        html += """
+            <h3 style="font-size: 14px; font-weight: 600; margin: 15px 0 10px 0;">Key Strengths</h3>
+            <div class="tags">"""
+        for s in key_strengths:
+            html += f'\n                <span class="tag">{s}</span>'
+        html += "\n            </div>"
     if development_areas:
-        html += '<span class="summary-label">📈 Development Areas:</span><div>'
-        for area in development_areas:
-            html += f'<span class="tag gap">{area}</span>'
-        html += '</div>'
-    
-    html += f'<div class="footer">Generated by {generated_by} • {report_date}<br>Candidate ID: {candidate_id}</div></div></body></html>'
-    
+        html += """
+            <h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 10px 0;">Gap</h3>
+            <p class="section-content" style="margin-bottom: 10px;">Missing skills or experience in key areas</p>
+            <div class="tags">"""
+        for a in development_areas:
+            html += f'\n                <span class="tag tag-red">{a}</span>'
+        html += "\n            </div>"
+    html += "\n        </div>"
+
+    # Suggested Interview Questions
+    interview_questions: List[str] = []
+    for item in must_have[:5]:
+        req = item.get("requirement", "").rstrip(".")
+        score = float(item.get("score", 0))
+        req_lower = req[0].lower() + req[1:] if req else req
+        if score >= 3:
+            interview_questions.append(
+                f"Can you walk us through your experience with {req_lower}? Please provide specific examples."
+            )
+        elif score >= 1:
+            interview_questions.append(
+                f"We noticed some experience with {req_lower}. Can you elaborate on your hands-on work in this area?"
+            )
+        else:
+            interview_questions.append(
+                f"This role requires {req_lower}. How would you approach developing this skill if given the opportunity?"
+            )
+    if position:
+        interview_questions.append(
+            f"What interests you most about this {position} role, and how do your skills align with our requirements?"
+        )
+
+    if interview_questions:
+        html += """
+        <div class="section">
+            <h2 class="section-title">Suggested Interview Questions</h2>
+            <div class="interview-questions">
+                <ul>"""
+        for q in interview_questions:
+            html += f"\n                    <li>{q}</li>"
+        html += """
+                </ul>
+            </div>
+        </div>"""
+
+    html += f"""
+        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #9ca3af; text-align: center;">
+            <p>Generated on {report_date} &bull; AI-Powered Candidate Evaluation</p>
+        </div>
+    </div>
+</body>
+</html>"""
+
     return html
 
 
@@ -747,7 +923,7 @@ def main() -> int:
         return 2
     
     try:
-        rubric = load_rubric_yaml(job_id)
+        rubric = load_rubric_json(job_id)
         print(f"Loaded rubric: {Config.get_rubric_path(job_id)}")
         rubric_structure = parse_rubric_structure(rubric)
     except Exception as e:
@@ -763,7 +939,11 @@ def main() -> int:
     
     total_candidates = len(candidates)
     min_score = Config.MIN_SCORE_FOR_REPORT
-    high_scorers = [c for c in candidates if float(c.get("ai_score", 0)) >= min_score]
+    # Prefer tier1_score (set by python8.py Tier 1 pass); fall back to ai_score for legacy CSVs
+    high_scorers = [
+        c for c in candidates
+        if float(c.get("tier1_score") or c.get("ai_score") or 0) >= min_score
+    ]
     
     generated_count = 0
     uploaded_count = 0

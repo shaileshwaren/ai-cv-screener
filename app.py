@@ -183,7 +183,7 @@ RUN_UI_HTML = r"""
               <th>#</th>
               <th>CANDIDATE</th>
               <th>CURRENT ROLE</th>
-              <th>SCORE</th>
+              <th>NEW SCORE</th>
               <th>STAGE</th>
               <th>RESUME</th>
               <th>REPORT</th>
@@ -373,7 +373,7 @@ RUN_UI_HTML = r"""
       meta.textContent = candidates.length + " candidates with reports";
       tbody.innerHTML = "";
       candidates.forEach(function(c, i) {
-        var score = c.ai_score != null ? Number(c.ai_score) : 0;
+        var score = c.ai_report_score != null ? Number(c.ai_report_score) : (c.ai_score != null ? Number(c.ai_score) : 0);
         var scoreCl = scoreClass(isNaN(score) ? 0 : score);
         var row = document.createElement("tr");
         row.innerHTML =
@@ -636,7 +636,7 @@ def get_results(
             client.table("candidates")
             .select(
                 "candidate_id, job_id, job_name, org_id, org_name, full_name, email, "
-                "resume_file, match_stage_name, ai_score, ai_summary, ai_strengths, ai_gaps, ai_report_html"
+                "resume_file, match_stage_name, ai_score, ai_summary, ai_strengths, ai_gaps, ai_report_html, ai_report_score"
             )
             .in_("job_id", jids)
             .order("ai_score", desc=True)
@@ -699,7 +699,7 @@ async def run_pipeline_form(request: Request):
     """
     Trigger the pipeline from the dashboard form.
     Form fields: job_ids (comma-separated), stage, and optional rubric_<job_id> file per job.
-    Each rubric_<job_id> is saved as rubrics/rubric_<job_id>.yaml.
+    Each rubric_<job_id> is saved as rubrics/rubric_<job_id>.json.
     """
     form = await request.form()
     job_ids = form.get("job_ids")
@@ -718,7 +718,7 @@ async def run_pipeline_form(request: Request):
         value = form.get(key)
         if value is not None and hasattr(value, "read"):
             content = await value.read()
-            path = RUBRIC_DIR / f"rubric_{job_id}.yaml"
+            path = RUBRIC_DIR / f"rubric_{job_id}.json"
             path.write_bytes(content)
 
     def _run():

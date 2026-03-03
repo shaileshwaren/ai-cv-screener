@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
-import yaml
 from openai import OpenAI
 
 # Import from consolidated modules
@@ -43,13 +42,13 @@ def load_offline_input(path: str) -> Dict[str, Any]:
 # =========================
 # Rubric + cache
 # =========================
-def load_rubric_yaml(path: str) -> dict:
+def load_rubric_json(path: str) -> dict:
     p = Path(path).expanduser()
     if not p.exists():
-        raise FileNotFoundError(f"Rubric YAML not found: {p}")
+        raise FileNotFoundError(f"Rubric JSON not found: {p}")
     rubric_text = p.read_text(encoding="utf-8", errors="ignore")
     rubric_text = rubric_text[:Config.MAX_RUBRIC_CHARS]
-    return yaml.safe_load(rubric_text)
+    return json.loads(rubric_text)
 
 
 def rubric_compact_json(rubric: dict) -> str:
@@ -256,68 +255,41 @@ def download_file(url: str, out_path: Path) -> Path:
 
 
 # =========================
-# LLM scoring (with YAML rubric)
+# LLM scoring – Tier 1 (fast bare integer)
 # =========================
-def llm_score(
-    oa: OpenAI,
-    rubric_json: str,
-    rubric_version: str,
-    resume_text: str
-) -> Dict[str, Any]:
-    """Score candidate using LLM based ONLY on rubric (no JD).
-    
-    Args:
-        oa: OpenAI client
-        rubric_json: Rubric as JSON string (SINGLE SOURCE OF TRUTH)
-        rubric_version: Version string from rubric
-        resume_text: Candidate resume text
-        
-    Returns:
-        Dict with ai_score, ai_summary, ai_strengths, ai_gaps
+def llm_score_tier1(oa: OpenAI, rubric_json: str, resume_text: str) -> int:
+    """Tier 1 fast screening: returns a bare 0-100 integer score.
+
+    Uses a minimal prompt with max_tokens=10 to minimise cost. The integer
+    is stored as ai_score in the CSV for upload to Supabase (Candidate Results
+    table). Detailed re-scoring happens later in generate_detailed_reports.py
+    for candidates whose tier1_score >= MIN_SCORE_FOR_REPORT.
     """
-    prompt = f"""You are an expert technical recruiter. Score this candidate STRICTLY against the rubric.
-
-CRITICAL: The rubric below is the SINGLE SOURCE OF TRUTH for all scoring decisions. Do not add criteria beyond what is explicitly stated in the rubric. Do not make assumptions about requirements not listed.
-
-RUBRIC_VERSION: {rubric_version}
-
-RUBRIC (EXHAUSTIVE LIST OF ALL REQUIREMENTS):
-{rubric_json}
-
-CANDIDATE RESUME:
-{clip(resume_text, Config.MAX_RESUME_CHARS)}
-
-INSTRUCTIONS:
-- Base your evaluation ONLY on requirements explicitly stated in the rubric above
-- Score each requirement based on evidence found in the resume
-- Do not infer additional requirements or criteria beyond the rubric
-- Use the rubric's scoring scale exactly as defined
-- Provide specific evidence from the resume for your assessments
-
-Return STRICT JSON ONLY with keys:
-ai_score (0-100 integer),
-ai_summary (<=60 words),
-ai_strengths (comma-separated string),
-ai_gaps (comma-separated string).
-""".strip()
-
-    r = oa.chat.completions.create(
-        model=Config.OPENAI_MODEL,
-        messages=[
-            {"role": "system", "content": "Return strict JSON only. No markdown. No extra keys."},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0.2,
+    prompt = (
+        "Score this resume against the rubric. "
+        "Return ONLY a single integer 0-100. No explanation, no other text.\n\n"
+        f"RUBRIC:\n{rubric_json[:8000]}\n\n"
+        f"RESUME:\n{clip(resume_text, Config.MAX_RESUME_CHARS)}"
     )
 
-    text = r.choices[0].message.content or ""
     try:
-        return json.loads(text)
-    except Exception:
-        m = re.search(r"\{.*\}", text, re.S)
+        r = oa.chat.completions.create(
+            model=Config.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": "Return ONLY a single integer 0-100. Nothing else."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.1,
+            max_tokens=10,
+        )
+        text = (r.choices[0].message.content or "").strip()
+        m = re.search(r"\d+", text)
         if m:
-            return json.loads(m.group(0))
-        raise RuntimeError(f"LLM returned non-JSON:\n{text[:1200]}")
+            return max(0, min(100, int(m.group())))
+        return 0
+    except Exception as e:
+        print(f"  Tier 1 scoring error: {e}")
+        return 0
 
 
 # =========================
@@ -327,7 +299,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Score Manatal job candidates (online via API or offline via JSON input)."
     )
-    parser.add_argument("job_id", help="Manatal JOB_ID (must match rubrics/rubric_<JOB_ID>.yaml)")
+    parser.add_argument("job_id", help="Manatal JOB_ID (must match rubrics/rubric_<JOB_ID>.json)")
     parser.add_argument("--offline", default="", help="Path to offline input JSON (skips Manatal API)")
     args = parser.parse_args()
 
@@ -357,14 +329,18 @@ def main() -> int:
     # Rubric path
     rubric_path = Config.get_rubric_path(job_id)
     if not rubric_path.exists():
-        print(f"ERROR: Rubric YAML not found for Job ID {job_id}", file=sys.stderr)
+        print(f"ERROR: Rubric JSON not found for Job ID {job_id}", file=sys.stderr)
         print(f"Expected: {rubric_path}", file=sys.stderr)
         return 2
 
     # Load rubric once
-    rubric = load_rubric_yaml(str(rubric_path))
+    rubric = load_rubric_json(str(rubric_path))
     rubric_json = rubric_compact_json(rubric)
-    rubric_version = str(rubric.get("version", "unknown"))
+    # Version is in metadata.version for new JSON schema; fall back to top-level
+    rubric_version = str(
+        rubric.get("metadata", {}).get("version")
+        or rubric.get("version", "unknown")
+    )
     rubric_hash = sha256_text(rubric_json)[:12]
 
     # Cache load
@@ -472,41 +448,36 @@ def main() -> int:
 
         if Config.SKIP_ALREADY_SCORED and not Config.FORCE_RESCORE and cache_key in cache:
             cached = cache[cache_key]
+            # Support both new (tier1_score) and legacy (ai_score) cache entries
+            tier1_score = int(cached.get("tier1_score", cached.get("ai_score", 0)))
             score = {
-                "ai_score": cached.get("ai_score", 0),
-                "ai_summary": cached.get("ai_summary", ""),
-                "ai_strengths": cached.get("ai_strengths", ""),
-                "ai_gaps": cached.get("ai_gaps", ""),
+                "ai_score": tier1_score,
+                "tier1_score": tier1_score,
+                "ai_summary": "",
+                "ai_strengths": "",
+                "ai_gaps": "",
             }
             resume_local_path = cached.get("resume_local_path", "")
-            print(f"Skipped (cached): {current_num}/{total_in_stage}. {full_name} (ID: {candidate_id}) -> Score: {score['ai_score']}")
+            print(f"Skipped (cached): {current_num}/{total_in_stage}. {full_name} (ID: {candidate_id}) -> Tier1: {tier1_score}")
         else:
-            score = {"ai_score": 0, "ai_summary": "", "ai_strengths": "", "ai_gaps": ""}
+            tier1_score = 0
+            score = {"ai_score": 0, "tier1_score": 0, "ai_summary": "", "ai_strengths": "", "ai_gaps": ""}
+
+            def _run_tier1(text: str) -> int:
+                if not text.strip():
+                    return 0
+                return llm_score_tier1(oa, rubric_json, text)
 
             if resume_local_path:
                 try:
                     p = Path(resume_local_path).expanduser()
                     if not p.is_absolute():
                         p = (Path.cwd() / p).resolve()
-
                     resume_text = extract_resume_text(p)
-
-                    if resume_text.strip():
-                        score = llm_score(oa, rubric_json, rubric_version, resume_text)
-                    else:
-                        score = {
-                            "ai_score": 0,
-                            "ai_summary": "Resume text extraction returned empty text (possibly scanned PDF).",
-                            "ai_strengths": "",
-                            "ai_gaps": "",
-                        }
+                    tier1_score = _run_tier1(resume_text)
                 except Exception as e:
-                    score = {
-                        "ai_score": 0,
-                        "ai_summary": f"Resume parse/score failed: {e}",
-                        "ai_strengths": "",
-                        "ai_gaps": "",
-                    }
+                    print(f"  Resume parse error: {e}")
+                    tier1_score = 0
 
             elif resume_url and Config.DOWNLOAD_RESUMES:
                 ext = Path(resume_url.split("?")[0]).suffix or ".pdf"
@@ -515,30 +486,18 @@ def main() -> int:
                     download_file(resume_url, out)
                     resume_local_path = str(out)
                     resume_text = extract_resume_text(out)
-
-                    if resume_text.strip():
-                        score = llm_score(oa, rubric_json, rubric_version, resume_text)
-                    else:
-                        score = {
-                            "ai_score": 0,
-                            "ai_summary": "Resume text extraction returned empty text (possibly scanned PDF).",
-                            "ai_strengths": "",
-                            "ai_gaps": "",
-                        }
+                    tier1_score = _run_tier1(resume_text)
                 except Exception as e:
-                    score = {
-                        "ai_score": 0,
-                        "ai_summary": f"Resume download/parse/score failed: {e}",
-                        "ai_strengths": "",
-                        "ai_gaps": "",
-                    }
-            else:
-                score = {
-                    "ai_score": 0,
-                    "ai_summary": "No resume_file URL available from candidate payload.",
-                    "ai_strengths": "",
-                    "ai_gaps": "",
-                }
+                    print(f"  Resume download/parse error: {e}")
+                    tier1_score = 0
+
+            score = {
+                "ai_score": tier1_score,
+                "tier1_score": tier1_score,
+                "ai_summary": "",
+                "ai_strengths": "",
+                "ai_gaps": "",
+            }
 
             # Save to cache
             cache[cache_key] = {
@@ -546,14 +505,15 @@ def main() -> int:
                 "candidate_id": candidate_id,
                 "rubric_version": rubric_version,
                 "rubric_hash": rubric_hash,
-                "ai_score": score.get("ai_score"),
-                "ai_summary": score.get("ai_summary"),
-                "ai_strengths": score.get("ai_strengths"),
-                "ai_gaps": score.get("ai_gaps"),
+                "tier1_score": tier1_score,
+                "ai_score": tier1_score,
                 "resume_local_path": resume_local_path,
             }
             save_cache(str(Config.CACHE_FILE), cache)
-            print(f"Scored: {current_num}/{total_in_stage}. {full_name} (ID: {candidate_id}) -> Score: {score.get('ai_score')}")
+            print(f"Scored: {current_num}/{total_in_stage}. {full_name} (ID: {candidate_id}) -> Tier1: {tier1_score}")
+
+        tier1_score = int(score.get("tier1_score", score.get("ai_score", 0)))
+        tier1_status = "PASS" if tier1_score >= Config.MIN_SCORE_FOR_REPORT else "FAIL"
 
         rows.append({
             "organisation_id": org_id,
@@ -569,11 +529,13 @@ def main() -> int:
             "email": email,
             "resume_file": resume_url,
             "resume_local_path": resume_local_path,
-            "ai_score": score.get("ai_score"),
-            "ai_summary": score.get("ai_summary"),
-            "ai_strengths": score.get("ai_strengths"),
-            "ai_gaps": score.get("ai_gaps"),
-            "ai_report_html": "",  # To be filled by generate_detailed_reports.py
+            "tier1_score": tier1_score,
+            "tier1_status": tier1_status,
+            "ai_score": tier1_score,  # Candidate Results table uses this
+            "ai_summary": "",         # Populated by Tier 2 (generate_detailed_reports.py)
+            "ai_strengths": "",
+            "ai_gaps": "",
+            "ai_report_html": "",     # Populated by Tier 2
             "rubric_version": rubric_version,
             "rubric_hash": rubric_hash,
             "cache_key": cache_key,
@@ -591,6 +553,7 @@ def main() -> int:
         "created_at", "updated_at", "match_stage_name",
         "candidate_id", "full_name", "email",
         "resume_file", "resume_local_path",
+        "tier1_score", "tier1_status",
         "ai_score", "ai_summary", "ai_strengths", "ai_gaps", "ai_report_html",
         "rubric_version", "rubric_hash", "cache_key",
     ]
@@ -601,7 +564,7 @@ def main() -> int:
         w.writerows(rows)
 
     print(f"\nDone. Rows: {len(rows)}")
-    print(f"Rubric: {rubric_path}")
+    print(f"Rubric (JSON): {rubric_path}")
     print(f"JSON: {json_path}")
     print(f"CSV : {csv_path}")
     print(f"Cache: {Config.CACHE_FILE}")

@@ -84,6 +84,7 @@ class Config:
     # =========================
     MIN_SCORE_FOR_REPORT = int(os.getenv("MIN_SCORE_FOR_REPORT", "75"))
     PASS_THRESHOLD = int(os.getenv("PASS_THRESHOLD", "70"))
+    RATING_SCALE_MAX = 4  # 0-4 scoring scale for detailed rubric items
 
     # =========================
     # Field Mapping (CSV → Supabase)
@@ -152,7 +153,7 @@ class Config:
 
     @classmethod
     def get_rubric_path(cls, job_id: str) -> Path:
-        return cls.RUBRIC_DIR / f"rubric_{job_id}.yaml"
+        return cls.RUBRIC_DIR / f"rubric_{job_id}.json"
 
     @classmethod
     def get_offline_json_path(cls, job_id: str) -> Path:
