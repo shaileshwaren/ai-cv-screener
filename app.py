@@ -134,7 +134,11 @@ RUN_UI_HTML = r"""
         <div class="run-row" style="margin-top: 1rem;">
           <div class="field">
             <label>PIPELINE STAGE</label>
-            <div class="field-static">New Candidates</div>
+            <input type="text" id="stage-input" class="field-input-stage" value="New Candidates" placeholder="New Candidates" />
+          </div>
+          <div class="field">
+            <label>TIER 2 CUTOFF (%)</label>
+            <input type="number" id="cutoff-input" class="field-input-cutoff" min="0" max="100" placeholder="60 = default" style="min-width: 120px;" />
           </div>
           <button type="submit" class="btn-run" id="btn">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -422,7 +426,14 @@ RUN_UI_HTML = r"""
       var rows = document.querySelectorAll(".job-row");
       var jobIds = [];
       var formData = new FormData();
-      formData.append("stage", "New Candidates");
+      var stageInput = document.getElementById("stage-input");
+      var stageVal = (stageInput && stageInput.value) ? stageInput.value.trim() : "";
+      formData.append("stage", stageVal || "New Candidates");
+      var cutoffInput = document.getElementById("cutoff-input");
+      if (cutoffInput && cutoffInput.value !== "" && !isNaN(parseInt(cutoffInput.value, 10))) {
+        var n = parseInt(cutoffInput.value, 10);
+        if (n >= 0 && n <= 100) formData.append("min_score_for_report", String(n));
+      }
       rows.forEach(function(row) {
         var idInput = row.querySelector(".job-id-input");
         var rubricInput = row.querySelector(".rubric-input");
@@ -497,7 +508,8 @@ class RunRequest(BaseModel):
         ...,
         description="Job ID(s): string like '3419430' or '3419430, 3261113', or list ['3419430', '3261113']",
     )
-    stage: str | None = Field(default=None, description="Pipeline stage (e.g. Processing). Uses TARGET_STAGE_NAME if not set.")
+    stage: str | None = Field(default=None, description="Pipeline stage (e.g. New Candidates). Uses TARGET_STAGE_NAME if not set.")
+    min_score_for_report: int | None = Field(default=None, description="Tier 2 cutoff 0-100. If not set, config default (60) is used.")
     skip_scoring: bool = False
     skip_upload: bool = False
     skip_reports: bool = False
@@ -515,6 +527,7 @@ def _run_pipeline_sync(
     skip_upload: bool,
     skip_reports: bool,
     stage: str | None = None,
+    min_score_for_report: int | None = None,
 ) -> int:
     """Run online_pipeline.py in current process. Returns exit code."""
     # Use unbuffered mode so logs flush line-by-line
@@ -530,6 +543,8 @@ def _run_pipeline_sync(
     env["PYTHONUNBUFFERED"] = "1"
     if stage:
         env["TARGET_STAGE_NAME"] = stage
+    if min_score_for_report is not None:
+        env["MIN_SCORE_FOR_REPORT"] = str(min_score_for_report)
     result = subprocess.run(cmd, cwd=str(HERE), env=env)
     return result.returncode
 
@@ -540,6 +555,7 @@ def _run_pipeline_with_logs(
     skip_upload: bool = False,
     skip_reports: bool = False,
     stage: str | None = None,
+    min_score_for_report: int | None = None,
 ) -> None:
     """Run pipeline and capture stdout/stderr to _pipe_state for terminal UI."""
     with _pipe_lock:
@@ -558,6 +574,8 @@ def _run_pipeline_with_logs(
     env["PYTHONUNBUFFERED"] = "1"
     if stage:
         env["TARGET_STAGE_NAME"] = stage
+    if min_score_for_report is not None:
+        env["MIN_SCORE_FOR_REPORT"] = str(min_score_for_report)
     try:
         proc = subprocess.Popen(
             cmd,
@@ -707,6 +725,15 @@ async def run_pipeline_form(request: Request):
         raise HTTPException(status_code=400, detail="job_ids is required")
     job_ids_norm = _normalize_job_ids(str(job_ids).strip())
     stage = str(form.get("stage") or "New Candidates").strip()
+    min_score_raw = form.get("min_score_for_report")
+    min_score_for_report: int | None = None
+    if min_score_raw is not None and str(min_score_raw).strip() != "":
+        try:
+            n = int(str(min_score_raw).strip())
+            if 0 <= n <= 100:
+                min_score_for_report = n
+        except ValueError:
+            pass
 
     RUBRIC_DIR.mkdir(parents=True, exist_ok=True)
     for key in form.keys():
@@ -728,6 +755,7 @@ async def run_pipeline_form(request: Request):
             skip_upload=False,
             skip_reports=False,
             stage=stage or "New Candidates",
+            min_score_for_report=min_score_for_report,
         )
 
     thread = threading.Thread(target=_run, daemon=True)
@@ -759,6 +787,7 @@ def run_pipeline(request: RunRequest):
             request.skip_upload,
             request.skip_reports,
             request.stage,
+            request.min_score_for_report,
         )
 
     thread = threading.Thread(target=_run, daemon=True)
@@ -789,6 +818,7 @@ def run_pipeline_sync(request: RunRequest):
         request.skip_upload,
         request.skip_reports,
         request.stage,
+        request.min_score_for_report,
     )
     if code != 0:
         raise HTTPException(status_code=500, detail=f"Pipeline exited with code {code}")

@@ -63,7 +63,7 @@ class Config:
     # =========================
     # Pipeline Settings
     # =========================
-    TARGET_STAGE_NAME = os.getenv("TARGET_STAGE_NAME", "Processing")
+    TARGET_STAGE_NAME = os.getenv("TARGET_STAGE_NAME", "New Candidates")
 
     DOWNLOAD_RESUMES = True
     SKIP_ALREADY_SCORED = True
@@ -82,7 +82,7 @@ class Config:
     # =========================
     # Scoring Settings
     # =========================
-    MIN_SCORE_FOR_REPORT = int(os.getenv("MIN_SCORE_FOR_REPORT", "75"))
+    MIN_SCORE_FOR_REPORT = int(os.getenv("MIN_SCORE_FOR_REPORT", "60"))
     PASS_THRESHOLD = int(os.getenv("PASS_THRESHOLD", "70"))
     RATING_SCALE_MAX = 4  # 0-4 scoring scale for detailed rubric items
 

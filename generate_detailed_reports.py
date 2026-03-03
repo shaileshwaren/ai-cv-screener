@@ -435,6 +435,87 @@ def llm_score_detailed(
 
 
 # =========================
+# Normalize LLM response to match rubric (count + item text)
+# =========================
+def normalize_detailed_response(ai_data: dict, rubric_structure: Dict[str, Any]) -> dict:
+    """Ensure compliance, must_have, and nice_to_have match rubric exactly.
+
+    - Same number of items as rubric.
+    - Item descriptions (requirement/skill/item text) exactly from rubric.
+    - Scores, status, evidence from LLM response matched by index or id; missing => 0 / NOT_ASSESSED / "".
+    """
+    out = dict(ai_data)
+
+    # ── Compliance ─────────────────────────────────────────────────────────
+    rubric_compliance = rubric_structure.get("compliance", [])
+    ai_compliance = ai_data.get("compliance", []) or []
+    norm_compliance = []
+    for i, r_comp in enumerate(rubric_compliance):
+        item_text = r_comp.get("item", "") if isinstance(r_comp, dict) else str(r_comp)
+        entry = {"requirement": item_text, "item": item_text, "status": "NOT_ASSESSED", "evidence": "", "details": ""}
+        if i < len(ai_compliance):
+            a = ai_compliance[i]
+            if isinstance(a, dict):
+                entry["status"] = a.get("status", "NOT_ASSESSED")
+                entry["evidence"] = a.get("evidence", a.get("details", ""))
+                entry["details"] = entry["evidence"]
+        norm_compliance.append(entry)
+    out["compliance"] = norm_compliance
+
+    # ── Must-have: match by index first, then by id ──────────────────────────
+    rubric_mh = rubric_structure.get("must_have", [])
+    ai_mh = ai_data.get("must_have", []) or []
+    ai_mh_by_id = {str(x.get("id", "")): x for x in ai_mh if x.get("id")}
+    norm_mh = []
+    for i, r in enumerate(rubric_mh):
+        if not isinstance(r, dict):
+            continue
+        rid = r.get("id", f"MH{i+1}")
+        req = r.get("requirement", "")
+        weight = float(r.get("weight", 0))
+        entry = {"id": rid, "requirement": req, "weight": weight, "score": 0, "evidence": "", "contribution": 0}
+        if i < len(ai_mh) and isinstance(ai_mh[i], dict):
+            a = ai_mh[i]
+            entry["score"] = a.get("score", 0)
+            entry["evidence"] = a.get("evidence", "")
+            entry["contribution"] = a.get("contribution", 0)
+        elif rid in ai_mh_by_id:
+            a = ai_mh_by_id[rid]
+            entry["score"] = a.get("score", 0)
+            entry["evidence"] = a.get("evidence", "")
+            entry["contribution"] = a.get("contribution", 0)
+        norm_mh.append(entry)
+    out["must_have"] = norm_mh
+
+    # ── Nice-to-have: match by index first, then by id ───────────────────────
+    rubric_nth = rubric_structure.get("nice_to_have", [])
+    ai_nth = ai_data.get("nice_to_have", []) or []
+    ai_nth_by_id = {str(x.get("id", "")): x for x in ai_nth if x.get("id")}
+    norm_nth = []
+    for i, r in enumerate(rubric_nth):
+        if not isinstance(r, dict):
+            continue
+        rid = r.get("id", f"NH{i+1}")
+        skill = r.get("skill", "")
+        weight = float(r.get("weight", 0))
+        entry = {"id": rid, "skill": skill, "weight": weight, "score": 0, "evidence": "", "contribution": 0}
+        if i < len(ai_nth) and isinstance(ai_nth[i], dict):
+            a = ai_nth[i]
+            entry["score"] = a.get("score", 0)
+            entry["evidence"] = a.get("evidence", "")
+            entry["contribution"] = a.get("contribution", 0)
+        elif rid in ai_nth_by_id:
+            a = ai_nth_by_id[rid]
+            entry["score"] = a.get("score", 0)
+            entry["evidence"] = a.get("evidence", "")
+            entry["contribution"] = a.get("contribution", 0)
+        norm_nth.append(entry)
+    out["nice_to_have"] = norm_nth
+
+    return out
+
+
+# =========================
 # Server-side score recomputation (0-4 scale)
 # =========================
 def _recompute_score(data: dict) -> float:
@@ -482,6 +563,9 @@ def generate_detailed_json_with_ai(
         or rubric.get("version", "1.0")
     )
     ai_data = llm_score_detailed(openai_client, rubric, rubric_structure, rubric_version, resume_text)
+
+    # ── Normalize so report items 100% match rubric (count + descriptions) ───
+    ai_data = normalize_detailed_response(ai_data, rubric_structure)
 
     # ── Server-side score recomputation ──────────────────────────────────────
     recomputed = _recompute_score(ai_data)
