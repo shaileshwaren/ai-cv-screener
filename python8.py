@@ -17,6 +17,7 @@ from openai import OpenAI
 # Import from consolidated modules
 from config import Config
 from utils import sha256_text, safe_filename, clip, extract_resume_text
+from src.supabase_client import SupabaseClient
 
 
 # =========================
@@ -42,15 +43,6 @@ def load_offline_input(path: str) -> Dict[str, Any]:
 # =========================
 # Rubric + cache
 # =========================
-def load_rubric_json(path: str) -> dict:
-    p = Path(path).expanduser()
-    if not p.exists():
-        raise FileNotFoundError(f"Rubric JSON not found: {p}")
-    rubric_text = p.read_text(encoding="utf-8", errors="ignore")
-    rubric_text = rubric_text[:Config.MAX_RUBRIC_CHARS]
-    return json.loads(rubric_text)
-
-
 def rubric_compact_json(rubric: dict) -> str:
     return json.dumps(rubric, ensure_ascii=False, separators=(",", ":"))
 
@@ -326,15 +318,14 @@ def main() -> int:
     export_dir = Config.OUTPUT_DIR
     upload_dir = Config.UPLOAD_DIR
 
-    # Rubric path
-    rubric_path = Config.get_rubric_path(job_id)
-    if not rubric_path.exists():
-        print(f"ERROR: Rubric JSON not found for Job ID {job_id}", file=sys.stderr)
-        print(f"Expected: {rubric_path}", file=sys.stderr)
+    # Load rubric once (Supabase is runtime source of truth)
+    supabase = SupabaseClient()
+    try:
+        rubric = supabase.get_rubric(job_id)
+    except Exception as e:
+        print(f"ERROR: Failed to load rubric for Job ID {job_id} from Supabase: {e}", file=sys.stderr)
         return 2
 
-    # Load rubric once
-    rubric = load_rubric_json(str(rubric_path))
     rubric_json = rubric_compact_json(rubric)
     # Version is in metadata.version for new JSON schema; fall back to top-level
     rubric_version = str(

@@ -124,17 +124,17 @@ def update_supabase_html_and_embeddings(
 
 
 # =========================
-# Rubric parsing
+# Rubric loading / parsing
 # =========================
-def load_rubric_json(job_id: str) -> dict:
-    """Load rubric JSON for a job."""
-    rubric_path = Config.get_rubric_path(job_id)
+def load_rubric_json(job_id: str, supabase: Optional[SupabaseClient] = None) -> dict:
+    """Load rubric JSON for a job, preferring Supabase rubrics table.
 
-    if not rubric_path.exists():
-        raise FileNotFoundError(f"Rubric not found: {rubric_path}")
-
-    with rubric_path.open("r", encoding="utf-8") as f:
-        return json.load(f)
+    Supabase is treated as the runtime source of truth for rubrics; local files
+    are reserved for authoring/export. This assumes a `rubrics` table where the
+    latest rubric for a given job_id is stored in the `rubric` JSONB column.
+    """
+    client = supabase or SupabaseClient()
+    return client.get_rubric(job_id)
 
 
 def parse_rubric_structure(rubric: dict) -> Dict[str, Any]:
@@ -1080,8 +1080,8 @@ def main() -> int:
         return 2
     
     try:
-        rubric = load_rubric_json(job_id)
-        print(f"Loaded rubric: {Config.get_rubric_path(job_id)}")
+        rubric = load_rubric_json(job_id, supabase=supabase)
+        print(f"Loaded rubric for job_id={job_id} from Supabase rubrics table")
         rubric_structure = parse_rubric_structure(rubric)
     except Exception as e:
         print(f"ERROR: Failed to load rubric: {e}")

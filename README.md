@@ -42,12 +42,20 @@ Edit `.env` and confirm all values:
 | `SUPABASE_DB_URL` | Direct PostgreSQL connection string |
 | `SUPABASE_STORAGE_BUCKET` | Storage bucket (default: `candidate_files`) |
 
-### 3. Add a rubric
+### 3. Seed rubrics in Supabase
 
-Place a YAML rubric file in `rubrics/`:
+Rubrics are stored in a Supabase table called `rubrics` and are loaded at runtime by job ID.
+
+During development you can:
+
+- Author rubrics locally under `rubrics/` (YAML or JSON), e.g. `rubrics/rubric_<JOB_ID>.json`
+- Then run:
+
+```bash
+python sync_rubrics_to_supabase.py
 ```
-rubrics/rubric_<JOB_ID>.yaml
-```
+
+This will upsert all local rubric files into the `rubrics` table. The online pipeline (`python8.py`) and detailed reports (`generate_detailed_reports.py`) will then fetch rubrics directly from Supabase.
 
 ---
 

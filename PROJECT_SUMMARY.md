@@ -87,7 +87,7 @@ An **AI-powered recruitment automation system** that streamlines candidate scree
 ### **Data Formats**
 | Format | Usage |
 |--------|-------|
-| **YAML** | Rubric definitions with semantic ontology |
+| **YAML/JSON** | Rubric authoring in `rubrics/` (synced into Supabase `rubrics` table) |
 | **JSON** | Data interchange, caching, API responses |
 | **CSV** | Scored candidate exports |
 | **HTML** | Detailed candidate reports |
@@ -151,10 +151,10 @@ supabase nocodb pipeline/
 │       ├── embedding_client.py     # OpenAI embeddings
 │       └── text_processor.py       # PDF/DOCX extraction
 │
-├── 📋 Rubrics (YAML)
+├── 📋 Rubrics (authoring)
 │   └── rubrics/
-│       ├── rubric_3419430.yaml     # Gen AI Engineer rubric
-│       └── rubric_3261113.yaml     # Other job rubrics
+│       ├── rubric_3419430.json     # Gen AI Engineer rubric (synced to Supabase)
+│       └── rubric_3261113.json     # Other job rubrics
 │
 ├── 📂 Input Data
 │   ├── local_input/                # Local candidate files

@@ -60,4 +60,15 @@ You should see the **Run recruitment pipeline** form. Enter a job ID (e.g. `3419
 
 ## Rubrics
 
-Job IDs `3419430` and `3261113` already have rubrics in `rubrics/`. For any new job ID, add a file `rubrics/rubric_<JOB_ID>.yaml` (see existing rubrics as a template) and commit + push so Render has it.
+Rubrics are stored in a Supabase table called `rubrics` and are loaded at runtime by job ID.
+
+During setup:
+
+1. Author or export rubrics into the local `rubrics/` folder (e.g. `rubrics/rubric_<JOB_ID>.json`).
+2. Run:
+
+   ```bash
+   python sync_rubrics_to_supabase.py
+   ```
+
+3. Confirm the `rubrics` table in Supabase has a row for each job ID you plan to run.
