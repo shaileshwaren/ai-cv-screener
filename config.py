@@ -84,7 +84,7 @@ class Config:
     # =========================
     MIN_SCORE_FOR_REPORT = int(os.getenv("MIN_SCORE_FOR_REPORT", "60"))
     PASS_THRESHOLD = int(os.getenv("PASS_THRESHOLD", "70"))
-    RATING_SCALE_MAX = 4  # 0-4 scoring scale for detailed rubric items
+    RATING_SCALE_MAX = 5  # 0-5 scoring scale for detailed rubric items (must-have / nice-to-have)
 
     # =========================
     # Field Mapping (CSV → Supabase)

@@ -211,7 +211,7 @@ RUN_UI_HTML = r"""
       var jobId = "job_id_" + row.dataset.rowId;
       var rubricId = "rubric_" + row.dataset.rowId;
       row.innerHTML = '<div class="field job-id"><label for="' + jobId + '">JOB ID</label><input type="text" id="' + jobId + '" class="job-id-input" placeholder="e.g. 3419430" required></div>' +
-        '<div class="field rubric"><label for="' + rubricId + '">RUBRIC (optional)</label><input type="file" id="' + rubricId + '" class="rubric-input" accept=".yaml,.yml"></div>' +
+        '<div class="field rubric"><label for="' + rubricId + '">RUBRIC (optional)</label><input type="file" id="' + rubricId + '" class="rubric-input" accept=".json"></div>' +
         '<button type="button" class="btn-remove" aria-label="Remove job">Remove</button>';
       row.querySelector(".job-id-input").value = jobIdVal || "";
       row.querySelector(".btn-remove").addEventListener("click", function() {

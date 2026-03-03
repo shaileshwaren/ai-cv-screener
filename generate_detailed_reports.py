@@ -169,6 +169,38 @@ def parse_rubric_structure(rubric: dict) -> Dict[str, Any]:
             elif isinstance(comp, str) and comp:
                 compliance.append({"item": comp, "details": ""})
 
+    # ===== COMPLIANCE: NORMALIZE TO EXACTLY 3 (education, years, location) =====
+    COMPLIANCE_DEFAULTS = [
+        "Education (degree, masters, or equivalent qualification as required by the role)",
+        "Years of related experience (as specified in job requirements)",
+        "Location (onsite/remote/region as required by the role)",
+    ]
+    education_keywords = ("education", "degree", "qualification", "masters", "bachelor", "diploma")
+    experience_keywords = ("year", "experience", "years of")
+    location_keywords = ("location", "onsite", "remote", "based", "region", "relocation")
+
+    def _match_category(text: str, keywords: tuple) -> bool:
+        t = (text or "").lower()
+        return any(k in t for k in keywords)
+
+    def _pick_item(candidates: List[dict], keywords: tuple, default: str) -> str:
+        for c in candidates:
+            item = (c.get("item") or c.get("requirement") or "").strip()
+            if _match_category(item, keywords):
+                return item
+        return default
+
+    normalized_compliance: List[dict] = []
+    for i, default_label in enumerate(COMPLIANCE_DEFAULTS):
+        if i == 0:
+            label = _pick_item(compliance, education_keywords, default_label)
+        elif i == 1:
+            label = _pick_item(compliance, experience_keywords, default_label)
+        else:
+            label = _pick_item(compliance, location_keywords, default_label)
+        normalized_compliance.append({"item": label, "details": ""})
+    compliance = normalized_compliance
+
     # ===== MUST-HAVE PARSING =====
     # New schema: requirements.must_have with id, evidence_signals, negative_signals
     requirements = rubric.get("requirements", {})
@@ -245,7 +277,7 @@ def parse_rubric_structure(rubric: dict) -> Dict[str, Any]:
 def build_detailed_scoring_prompt(rubric: dict, rubric_structure: Dict[str, Any], resume_text: str, rubric_version: str) -> str:
     """Build Tier 2 detailed scoring prompt.
 
-    Merges python10c (primary: item IDs, evidence/negative signals, 0-4 scale,
+    Merges python10c (primary: item IDs, evidence/negative signals, 0-5 scale,
     contribution formula) with python8 additions (ROLE/JD header, semantic
     guidance, CRITICAL rubric-only instructions, exact item counts, bias guardrails).
     """
@@ -277,9 +309,9 @@ def build_detailed_scoring_prompt(rubric: dict, rubric_structure: Dict[str, Any]
         prompt += "SEMANTIC GUIDANCE (accept equivalent terms for these):\n"
         prompt += ", ".join(semantic_terms[:30]) + "\n\n"
 
-    # Compliance items
+    # Compliance items (always exactly 3: education, years of experience, location)
     if compliance_items:
-        prompt += f"COMPLIANCE REQUIREMENTS (PASS/FAIL — exactly {len(compliance_items)} items):\n"
+        prompt += "COMPLIANCE REQUIREMENTS (PASS/FAIL — exactly 3 items: Education, Years of related experience, Location):\n"
         for i, item in enumerate(compliance_items, 1):
             prompt += f"{i}. {item.get('item', '')}\n"
         prompt += "\n"
@@ -313,23 +345,24 @@ def build_detailed_scoring_prompt(rubric: dict, rubric_structure: Dict[str, Any]
     prompt += f"CANDIDATE RESUME:\n{clip(resume_text, Config.MAX_RESUME_CHARS)}\n\n"
 
     prompt += (
-        "SCORING SCALE (0-4):\n"
+        "SCORING SCALE (0-5):\n"
         "0 = No evidence\n"
         "1 = Basic familiarity; limited depth\n"
         "2 = Working proficiency; has shipped parts\n"
         "3 = Strong; shipped in production with clear ownership\n"
-        "4 = Expert; repeatable success, can mentor and set standards\n\n"
-        "SCORING FORMULA: contribution = (score / 4) × weight\n"
+        "4 = Expert; repeatable success, can mentor and set standards\n"
+        "5 = Outstanding; industry-level authority, defines best practices\n\n"
+        "SCORING FORMULA: contribution = (score / 5) × weight\n"
         "overall_score = sum of all contributions (normalised to 0-100)\n\n"
         "CRITICAL INSTRUCTIONS:\n"
         f"1. The must_have array MUST contain EXACTLY {len(must_have_reqs)} items using IDs {mh_ids}.\n"
         f"2. The nice_to_have array MUST contain EXACTLY {len(nice_to_have_skills)} items using IDs {nh_ids}.\n"
-        f"3. The compliance array MUST contain EXACTLY {len(compliance_items)} items.\n"
+        "3. The compliance array MUST contain EXACTLY 3 items (Education, Years of related experience, Location).\n"
         "4. Use the EXACT item ID, requirement text, and weight from the rubric. Do NOT rephrase.\n"
         "5. Provide specific evidence quotes from the resume for each score.\n"
         f"6. Floor rule: if ANY must-have score < 2, set floor_triggered=true and recommendation=\"FAIL\".\n"
         f"7. Pass threshold: overall_score >= {pass_threshold} (unless floor triggered).\n"
-        "8. overall_score MUST equal sum of (score/4 × weight) for all items.\n"
+        "8. overall_score MUST equal sum of (score/5 × weight) for all items.\n"
         "9. Evaluate on demonstrated outcomes only. Ignore protected attributes (age, gender, race, etc.).\n"
         "10. Respond with ONLY valid JSON. No markdown, no code blocks, no preamble.\n"
     )
@@ -343,8 +376,8 @@ def build_detailed_scoring_prompt(rubric: dict, rubric_structure: Dict[str, Any]
 REQUIRED JSON OUTPUT:
 {
   "compliance": [{"requirement": "EXACT text", "status": "PASS|FAIL", "evidence": "brief reason"}],
-  "must_have": [{"id": "MHx", "requirement": "EXACT text", "score": 0-4, "weight": N, "contribution": N, "evidence": "specific quote"}],
-  "nice_to_have": [{"id": "NHx", "skill": "EXACT text", "score": 0-4, "weight": N, "contribution": N, "evidence": "specific quote"}],
+  "must_have": [{"id": "MHx", "requirement": "EXACT text", "score": 0-5, "weight": N, "contribution": N, "evidence": "specific quote"}],
+  "nice_to_have": [{"id": "NHx", "skill": "EXACT text", "score": 0-5, "weight": N, "contribution": N, "evidence": "specific quote"}],
   "overall_score": N,
   "ai_score": N,
   "ai_summary": "2-3 sentence assessment (max 60 words)",
@@ -516,25 +549,25 @@ def normalize_detailed_response(ai_data: dict, rubric_structure: Dict[str, Any])
 
 
 # =========================
-# Server-side score recomputation (0-4 scale)
+# Server-side score recomputation (0-5 scale)
 # =========================
 def _recompute_score(data: dict) -> float:
     """Recalculate overall_score in Python to override LLM arithmetic.
 
-    Uses the 0-4 rating scale: contribution = (score / 4) × weight.
+    Uses the 0-5 rating scale: contribution = (score / 5) × weight.
     Caps at 100.0.
     """
     total = 0.0
     for item in data.get("must_have", []):
         s = float(item.get("score", 0) or 0)
         w = float(item.get("weight", 0) or 0)
-        contrib = round((s / 4.0) * w, 4)
+        contrib = round((s / 5.0) * w, 4)
         item["contribution"] = contrib
         total += contrib
     for item in data.get("nice_to_have", []):
         s = float(item.get("score", 0) or 0)
         w = float(item.get("weight", 0) or 0)
-        contrib = round((s / 4.0) * w, 4)
+        contrib = round((s / 5.0) * w, 4)
         item["contribution"] = contrib
         total += contrib
     return round(min(total, 100.0), 1)
@@ -626,7 +659,10 @@ def generate_detailed_json_with_ai(
 # HTML report generation (matches Candidate Evaluation reference design)
 # =========================
 def generate_html_report(detailed_json: Dict[str, Any]) -> str:
-    """Generate HTML report matching the reference Candidate Evaluation design."""
+    """Generate HTML report matching the reference Candidate Evaluation design.
+
+    Layout and section order follow the gold-standard: Candidate Evaluation - Shailesh Waren.html
+    """
 
     candidate_name = detailed_json.get("candidate_name", "Candidate")
     position = detailed_json.get("position", "Position")
@@ -650,16 +686,16 @@ def generate_html_report(detailed_json: Dict[str, Any]) -> str:
     else:
         badge_class = "badge-fail"
 
-    def score_color(score: float, max_score: float = 4) -> str:
+    def score_color(score: float, max_score: float = 5) -> str:
         ratio = score / max_score if max_score > 0 else 0
         if ratio >= 1.0:
-            return "#15803d"   # Expert (4/4)
-        elif ratio >= 0.75:
-            return "#16a34a"   # Strong (3/4)
-        elif ratio >= 0.5:
-            return "#ca8a04"   # Working (2/4)
+            return "#15803d"   # Outstanding (5/5)
+        elif ratio >= 0.8:
+            return "#16a34a"   # Expert (4/5)
+        elif ratio >= 0.6:
+            return "#ca8a04"   # Strong/Working (3/5)
         else:
-            return "#dc2626"   # Weak/None (0-1/4)
+            return "#dc2626"   # Weak/None (0-2/5)
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -797,7 +833,7 @@ def generate_html_report(detailed_json: Dict[str, Any]) -> str:
             html += f"""
                     <tr>
                         <td class="requirement-text">{item.get("requirement", "")}</td>
-                        <td class="score-cell" style="color: {color};">{int(score)}/4</td>
+                        <td class="score-cell" style="color: {color};">{int(score)}/5</td>
                         <td class="weight-cell">{weight}%</td>
                         <td class="evidence-text">{evidence}</td>
                     </tr>"""
@@ -829,7 +865,7 @@ def generate_html_report(detailed_json: Dict[str, Any]) -> str:
             html += f"""
                     <tr>
                         <td class="requirement-text">{item.get("skill", "")}</td>
-                        <td class="score-cell" style="color: {color};">{int(score)}/4</td>
+                        <td class="score-cell" style="color: {color};">{int(score)}/5</td>
                         <td class="weight-cell">{weight}%</td>
                         <td class="evidence-text">{evidence}</td>
                     </tr>"""
