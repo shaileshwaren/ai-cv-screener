@@ -344,15 +344,38 @@ def build_detailed_scoring_prompt(rubric: dict, rubric_structure: Dict[str, Any]
 
     prompt += f"CANDIDATE RESUME:\n{clip(resume_text, Config.MAX_RESUME_CHARS)}\n\n"
 
+    # Scoring scale: prefer rubric-defined labels when available, otherwise fall back to linear defaults
+    scoring = rubric.get("scoring", {}) if isinstance(rubric, dict) else {}
+    scale = scoring.get("scale") if isinstance(scoring, dict) else None
+    if isinstance(scale, dict) and scale:
+        try:
+            scale_pairs = sorted(((int(k), str(v)) for k, v in scale.items()), key=lambda x: x[0])
+        except (TypeError, ValueError):
+            scale_pairs = []
+    else:
+        scale_pairs = []
+
+    if scale_pairs:
+        max_score = max(k for k, _ in scale_pairs)
+        prompt += f"SCORING SCALE (0-{max_score}, from rubric):\n"
+        for k, label in scale_pairs:
+            prompt += f"{k} = {label}\n"
+        prompt += "\n"
+    else:
+        # Fall back only if rubric does not define a scale; default to 0-5
+        max_score = 5
+        prompt += (
+            "SCORING SCALE (0-5, linear — 5 = fully meets requirement):\n"
+            "0 = No evidence\n"
+            "1 = Minimal; little or no relevant evidence\n"
+            "2 = Partial; some evidence but significant gaps\n"
+            "3 = Adequate; meets requirement with sufficient evidence\n"
+            "4 = Strong; clearly meets requirement with good evidence\n"
+            "5 = Full; fully meets requirement with clear, specific evidence\n\n"
+        )
+
     prompt += (
-        "SCORING SCALE (0-5, linear — 5 = fully meets requirement):\n"
-        "0 = No evidence\n"
-        "1 = Minimal; little or no relevant evidence\n"
-        "2 = Partial; some evidence but significant gaps\n"
-        "3 = Adequate; meets requirement with sufficient evidence\n"
-        "4 = Strong; clearly meets requirement with good evidence\n"
-        "5 = Full; fully meets requirement with clear, specific evidence\n\n"
-        "SCORING FORMULA: contribution = (score / 5) × weight\n"
+        f"SCORING FORMULA: contribution = (score / {max_score}) × weight\n"
         "overall_score = sum of all contributions (normalised to 0-100)\n\n"
         "CRITICAL INSTRUCTIONS:\n"
         f"1. The must_have array MUST contain EXACTLY {len(must_have_reqs)} items using IDs {mh_ids}.\n"
@@ -362,7 +385,7 @@ def build_detailed_scoring_prompt(rubric: dict, rubric_structure: Dict[str, Any]
         "5. Provide specific evidence quotes from the resume for each score.\n"
         f"6. Floor rule: if ANY must-have score < 2, set floor_triggered=true and recommendation=\"FAIL\".\n"
         f"7. Pass threshold: overall_score >= {pass_threshold} (unless floor triggered).\n"
-        "8. overall_score MUST equal sum of (score/5 × weight) for all items.\n"
+        f"8. overall_score MUST equal sum of (score/{max_score} × weight) for all items.\n"
         "9. Evaluate on demonstrated outcomes only. Ignore protected attributes (age, gender, race, etc.).\n"
         "10. Respond with ONLY valid JSON. No markdown, no code blocks, no preamble.\n"
     )
@@ -549,25 +572,25 @@ def normalize_detailed_response(ai_data: dict, rubric_structure: Dict[str, Any])
 
 
 # =========================
-# Server-side score recomputation (0-5 scale)
+# Server-side score recomputation (rubric-derived scale)
 # =========================
-def _recompute_score(data: dict) -> float:
+def _recompute_score(data: dict, rating_max: float) -> float:
     """Recalculate overall_score in Python to override LLM arithmetic.
 
-    Uses the 0-5 rating scale: contribution = (score / 5) × weight.
+    Uses the rubric-defined rating scale: contribution = (score / rating_max) × weight.
     Caps at 100.0.
     """
     total = 0.0
     for item in data.get("must_have", []):
         s = float(item.get("score", 0) or 0)
         w = float(item.get("weight", 0) or 0)
-        contrib = round((s / 5.0) * w, 4)
+        contrib = round((s / float(rating_max or 1.0)) * w, 4)
         item["contribution"] = contrib
         total += contrib
     for item in data.get("nice_to_have", []):
         s = float(item.get("score", 0) or 0)
         w = float(item.get("weight", 0) or 0)
-        contrib = round((s / 5.0) * w, 4)
+        contrib = round((s / float(rating_max or 1.0)) * w, 4)
         item["contribution"] = contrib
         total += contrib
     return round(min(total, 100.0), 1)
@@ -600,8 +623,20 @@ def generate_detailed_json_with_ai(
     # ── Normalize so report items 100% match rubric (count + descriptions) ───
     ai_data = normalize_detailed_response(ai_data, rubric_structure)
 
+    # Determine rating scale max from rubric scoring.scale (fallback 5)
+    rating_max = 5
+    scoring = rubric.get("scoring", {}) if isinstance(rubric, dict) else {}
+    scale = scoring.get("scale") if isinstance(scoring, dict) else None
+    if isinstance(scale, dict) and scale:
+        try:
+            keys = [int(k) for k in scale.keys()]
+            if keys:
+                rating_max = max(keys)
+        except (TypeError, ValueError):
+            pass
+
     # ── Server-side score recomputation ──────────────────────────────────────
-    recomputed = _recompute_score(ai_data)
+    recomputed = _recompute_score(ai_data, rating_max)
 
     # ── Hard-coded floor rule ─────────────────────────────────────────────────
     pass_threshold = rubric_structure.get("pass_threshold", Config.PASS_THRESHOLD)
@@ -650,6 +685,7 @@ def generate_detailed_json_with_ai(
         "development_areas": gaps_list,
         "must_have_weight": int(must_have_total_weight),
         "nice_to_have_weight": int(nice_to_have_total_weight),
+        "rating_max": rating_max,
     }
 
     return detailed_json
@@ -678,6 +714,7 @@ def generate_html_report(detailed_json: Dict[str, Any]) -> str:
     nice_to_have = detailed_json.get("nice_to_have", [])
     must_have_weight = detailed_json.get("must_have_weight", 90)
     nice_to_have_weight = detailed_json.get("nice_to_have_weight", 10)
+    rating_max = detailed_json.get("rating_max", 5)
 
     if recommendation == "PASS":
         badge_class = "badge-pass"
@@ -686,16 +723,16 @@ def generate_html_report(detailed_json: Dict[str, Any]) -> str:
     else:
         badge_class = "badge-fail"
 
-    def score_color(score: float, max_score: float = 5) -> str:
+    def score_color(score: float, max_score: float = rating_max) -> str:
         ratio = score / max_score if max_score > 0 else 0
         if ratio >= 1.0:
-            return "#15803d"   # Full (5/5)
+            return "#15803d"   # Full (max score)
         elif ratio >= 0.8:
-            return "#16a34a"   # Strong (4/5)
+            return "#16a34a"   # Strong
         elif ratio >= 0.6:
-            return "#ca8a04"   # Adequate (3/5)
+            return "#ca8a04"   # Adequate
         else:
-            return "#dc2626"   # Partial/None (0-2/5)
+            return "#dc2626"   # Partial/None
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -833,7 +870,7 @@ def generate_html_report(detailed_json: Dict[str, Any]) -> str:
             html += f"""
                     <tr>
                         <td class="requirement-text">{item.get("requirement", "")}</td>
-                        <td class="score-cell" style="color: {color};">{int(score)}/5</td>
+                        <td class="score-cell" style="color: {color};">{int(score)}/{rating_max}</td>
                         <td class="weight-cell">{weight}%</td>
                         <td class="evidence-text">{evidence}</td>
                     </tr>"""
@@ -865,7 +902,7 @@ def generate_html_report(detailed_json: Dict[str, Any]) -> str:
             html += f"""
                     <tr>
                         <td class="requirement-text">{item.get("skill", "")}</td>
-                        <td class="score-cell" style="color: {color};">{int(score)}/5</td>
+                        <td class="score-cell" style="color: {color};">{int(score)}/{rating_max}</td>
                         <td class="weight-cell">{weight}%</td>
                         <td class="evidence-text">{evidence}</td>
                     </tr>"""

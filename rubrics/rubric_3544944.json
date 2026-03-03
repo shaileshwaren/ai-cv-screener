@@ -2,201 +2,192 @@
   "job_id": "3544944",
   "role": "Generative AI Full-Stack Engineer",
   "company": "Oxydata",
-  "seniority_level": "junior_to_mid",
-  "rubric_name": "Oxydata GenAI Full-Stack Engineer Rubric",
+  "seniority_level": "mid",
+  "rubric_name": "GenerativeAI_FullStackEngineer_20260303",
+  "rubric_version": "2.2",
   "generated_date": "2026-03-03",
   "jd": {
-    "jd_summary": "Own end-to-end AI recruitment platform delivery across React dashboards, FastAPI services, Python AI pipelines, and production RAG (retrieval + grounding) with Supabase/PostgreSQL + pgvector.",
+    "jd_summary": "Seeking a Generative AI Full-Stack Engineer to build an end-to-end AI recruitment platform, handling everything from frontend development to AI processing pipelines.",
     "core_responsibilities": [
-      "Build React dashboards for recruiters/hiring managers (filters, analytics, candidate insights).",
-      "Develop FastAPI web services for APIs, reporting, and data management.",
-      "Implement Python cron/background jobs for CV ingestion, AI scoring, and candidate report generation.",
-      "Design and operate RAG pipelines (embeddings, vector search, semantic matching, reranking, grounding).",
-      "Architect data layer using Supabase/PostgreSQL with pgvector for hybrid search.",
-      "Integrate external systems (LLM providers, workforce platforms, email delivery).",
-      "Deploy and operate services in cloud environments with basic DevOps practices."
+      "Develop React.js dashboards for UI/UX",
+      "Create FastAPI web services for backend",
+      "Implement AI processing pipelines using Python",
+      "Architect database solutions with Supabase/PostgreSQL",
+      "Integrate external APIs for enhanced functionality"
     ],
     "must_haves_from_jd": [
-      "Bachelor's degree in CS/Software Engineering/AI or related field.",
-      "1–4 years building production GenAI/RAG systems; ability to build complete apps end-to-end.",
-      "Python (primary) + JavaScript/React; FastAPI + React.js.",
-      "Supabase/PostgreSQL + pgvector for hybrid search.",
-      "Claude/OpenAI APIs, embeddings, prompt engineering.",
-      "RAG expertise: chunking, embeddings, vector search, reranking, grounding.",
-      "DevOps/deployment: Git, REST design, testing, error handling, cron scheduling, cloud deployment.",
-      "External API integration (LLM providers, email services)."
+      "Bachelor's in CS, Software Engineering, AI, or related field",
+      "1–4 years building production GenAI/RAG systems",
+      "Proficiency in Python and JavaScript/React",
+      "Experience with FastAPI and React.js",
+      "Knowledge of Supabase, PostgreSQL, and pgvector",
+      "Real-world RAG expertise",
+      "DevOps experience including Git and REST API design",
+      "Proven API integration skills"
     ],
     "nice_to_haves_from_jd": [
-      "LangChain or LlamaIndex.",
-      "MCP or AI agent frameworks.",
-      "CI/CD experience.",
-      "Docker."
+      "Experience with LangChain or LlamaIndex",
+      "Familiarity with MCP or AI agent frameworks",
+      "CI/CD experience",
+      "Docker for containerized development"
     ]
   },
   "compliance_requirements": [
-    "Bachelor's degree in Computer Science, Software Engineering, AI, or related field (required).",
-    "Onsite work in Ara Damansara, Petaling Jaya.",
-    "Full-time availability."
+    "Bachelor's in CS, Software Engineering, AI, or related field",
+    "1–4 years building production GenAI/RAG systems"
   ],
+  "scoring": {
+    "scale": {
+      "0": "Not demonstrated",
+      "1": "Mentioned only",
+      "2": "Basic exposure",
+      "3": "Hands-on experience",
+      "4": "Advanced practical expertise",
+      "5": "Expert level with leadership"
+    },
+    "calculation": "Weighted average",
+    "pass_threshold": 70,
+    "floor_rule": "Any must-have < 2 triggers FAIL",
+    "weighting": {
+      "must_have_total_weight_percent": 90,
+      "nice_to_have_total_weight_percent": 10
+    }
+  },
   "requirements": {
     "must_have": [
       {
         "id": "MH1",
-        "requirement": "Build production-ready Python services and AI processing jobs (clean architecture, typing, reliability).",
-        "weight": 15,
+        "requirement": "Bachelor's in CS, Software Engineering, AI, or related field",
+        "importance_tier": "CRITICAL",
+        "weight": 20,
         "priority": "HIGHEST",
         "evidence_signals": [
-          "Shipped Python backend/ETL or AI pipeline code to production with ownership (design → deploy).",
-          "Demonstrates good practices: typing/pydantic models, async where appropriate, logging, retries.",
-          "Can explain tradeoffs for latency/cost/reliability in Python services or batch jobs."
+          "Degree in relevant field mentioned in CV",
+          "Relevant coursework or projects in AI or software engineering",
+          "Graduation date aligns with experience timeline"
         ],
         "negative_signals": [
-          "Only notebook/demo work; no production deployment or operational responsibility.",
-          "Cannot describe error handling, observability, or data consistency practices."
+          "Degree not mentioned",
+          "Unrelated field of study"
         ],
         "implementation_note": null
       },
       {
         "id": "MH2",
-        "requirement": "Develop React.js dashboards for recruiters/hiring managers with strong UX (filters, analytics, candidate insights).",
-        "weight": 12,
-        "priority": "HIGH",
+        "requirement": "1–4 years building production GenAI/RAG systems",
+        "importance_tier": "CRITICAL",
+        "weight": 20,
+        "priority": "HIGHEST",
         "evidence_signals": [
-          "Built React dashboards with complex data tables/filters and state management.",
-          "Understands UX for search, sorting, pagination, and information density.",
-          "Can integrate frontend with REST APIs and handle loading/error states well."
+          "Demonstrated projects in CV showcasing GenAI/RAG systems",
+          "Specific roles held in previous employment related to GenAI",
+          "References confirming experience in relevant technologies"
         ],
         "negative_signals": [
-          "Only static UI work without data flow or real product usage.",
-          "Cannot explain component architecture or state management approach."
+          "Experience less than 1 year",
+          "No relevant projects or roles listed"
         ],
         "implementation_note": null
       },
       {
         "id": "MH3",
-        "requirement": "Implement FastAPI backend services (REST endpoints, request/response schemas, report generation, data management).",
+        "requirement": "Proficiency in Python and JavaScript/React",
+        "importance_tier": "IMPORTANT",
         "weight": 10,
         "priority": "HIGH",
         "evidence_signals": [
-          "Designed FastAPI endpoints with pydantic models and OpenAPI documentation.",
-          "Handles auth patterns, pagination, validation, and structured error responses.",
-          "Has implemented report generation or export flows (PDF/HTML/JSON) or similar."
+          "Projects listed in CV using Python and React",
+          "Contributions to open-source projects in these languages",
+          "Certifications or courses completed in Python/React"
         ],
         "negative_signals": [
-          "API experience limited to simple CRUD without validation/versioning.",
-          "No understanding of async vs sync, dependency injection, or schema design."
+          "No mention of programming languages",
+          "Experience only in unrelated languages"
         ],
         "implementation_note": null
       },
       {
         "id": "MH4",
-        "requirement": "Build real-world RAG pipelines: chunking, embeddings, retrieval, reranking, and grounded generation for candidate-job fit analysis.",
-        "weight": 15,
-        "priority": "HIGHEST",
+        "requirement": "Experience with FastAPI and React.js",
+        "importance_tier": "IMPORTANT",
+        "weight": 10,
+        "priority": "HIGH",
         "evidence_signals": [
-          "Has shipped a RAG system with clear retrieval strategy and grounding behavior.",
-          "Can explain chunking choices (size/overlap), evaluation, and failure modes (hallucination, missing context).",
-          "Demonstrates understanding of reranking and hybrid retrieval to improve relevance."
+          "Projects or roles specifically mentioning FastAPI and React.js",
+          "Demonstrated ability to build applications using these frameworks",
+          "Technical blogs or articles authored on these technologies"
         ],
         "negative_signals": [
-          "Uses the term 'RAG' but cannot describe chunking/retrieval/grounding details.",
-          "Only keyword search or prompt-only chatbot experience."
+          "No experience with FastAPI or React.js",
+          "Experience only in other frameworks"
         ],
         "implementation_note": null
       },
       {
         "id": "MH5",
-        "requirement": "Design database + retrieval layer using Supabase/PostgreSQL and pgvector for hybrid search (keyword + semantic) and indexing.",
-        "weight": 10,
-        "priority": "HIGH",
+        "requirement": "Knowledge of Supabase, PostgreSQL, and pgvector",
+        "importance_tier": "FOUNDATIONAL",
+        "weight": 5,
+        "priority": "MEDIUM",
         "evidence_signals": [
-          "Has modeled Postgres schemas, indexes, and migrations for production workloads.",
-          "Implemented pgvector similarity queries and combined with filters/full-text for hybrid search.",
-          "Understands performance considerations: indexing choices, top-k queries, and query tuning."
+          "Experience listed in CV with database technologies",
+          "Projects utilizing Supabase or PostgreSQL",
+          "Understanding of vector storage concepts"
         ],
         "negative_signals": [
-          "No SQL/schema design experience; relies entirely on ORM defaults.",
-          "Mentions pgvector but cannot explain how vectors are stored/queried."
+          "No database experience mentioned",
+          "Experience only with unrelated database systems"
         ],
         "implementation_note": null
       },
       {
         "id": "MH6",
-        "requirement": "Integrate LLM APIs (Claude and/or OpenAI) for scoring and report generation with prompt engineering, rate limits, and cost controls.",
+        "requirement": "Real-world RAG expertise",
+        "importance_tier": "IMPORTANT",
         "weight": 10,
         "priority": "HIGH",
         "evidence_signals": [
-          "Implemented LLM provider API calls with retries, timeouts, and backoff for rate limits.",
-          "Uses structured prompts/outputs and can describe prompt iteration and evaluation.",
-          "Can explain token/cost monitoring and latency optimizations (batching, caching, smaller models)."
+          "Specific projects demonstrating RAG implementation",
+          "Experience with chunking and embeddings",
+          "Knowledge of vector search techniques"
         ],
         "negative_signals": [
-          "Only used ChatGPT UI; no API integration experience.",
-          "No awareness of rate limiting, token budgeting, or safety/grounding practices."
+          "No RAG experience mentioned",
+          "Only theoretical knowledge without practical application"
         ],
         "implementation_note": null
       },
       {
         "id": "MH7",
-        "requirement": "Own end-to-end delivery across UI → API → database → AI pipeline, demonstrating product thinking and execution.",
-        "weight": 8,
-        "priority": "MEDIUM",
+        "requirement": "DevOps experience including Git and REST API design",
+        "importance_tier": "IMPORTANT",
+        "weight": 10,
+        "priority": "HIGH",
         "evidence_signals": [
-          "Delivered a complete feature/system spanning frontend, backend, and data layer.",
-          "Can articulate requirements, tradeoffs, and milestones for shipping increments.",
-          "Shows ability to debug across layers (frontend ↔ API ↔ DB ↔ AI pipeline)."
+          "Experience with version control systems in CV",
+          "Projects involving REST API design",
+          "Knowledge of deployment processes"
         ],
         "negative_signals": [
-          "Only worked in a narrow silo; avoids cross-stack ownership.",
-          "Cannot describe real delivery outcomes or collaboration patterns."
+          "No mention of DevOps practices",
+          "Limited understanding of API design"
         ],
         "implementation_note": null
       },
       {
         "id": "MH8",
-        "requirement": "DevOps & deployment fundamentals: Git workflow, cloud deployment (Render/Vercel/Railway/AWS/GCP), environment/secrets, basic monitoring.",
+        "requirement": "Proven API integration skills",
+        "importance_tier": "FOUNDATIONAL",
         "weight": 5,
         "priority": "MEDIUM",
         "evidence_signals": [
-          "Deployed services/apps to a cloud platform with environment config and secrets handling.",
-          "Uses Git with PR-based workflow and code reviews.",
-          "Understands logs/metrics basics and rollback/incident hygiene."
+          "Experience integrating APIs in previous roles",
+          "Projects showcasing successful API integrations",
+          "Technical documentation or case studies authored"
         ],
         "negative_signals": [
-          "No deployment experience beyond local development.",
-          "Poor Git hygiene (no branching strategy, no PRs, no reviews)."
-        ],
-        "implementation_note": null
-      },
-      {
-        "id": "MH9",
-        "requirement": "Scheduled/background processing: cron jobs for CV ingestion, scoring runs, and report generation with idempotency and retries.",
-        "weight": 3,
-        "priority": "LOW",
-        "evidence_signals": [
-          "Built scheduled jobs/workers and can explain idempotency and retry strategies.",
-          "Handles backfills and failure recovery for batch processing.",
-          "Understands basic queue/scheduler patterns even if using cron."
-        ],
-        "negative_signals": [
-          "Runs batch steps manually without automation.",
-          "No strategy for retries, backfills, or failure isolation."
-        ],
-        "implementation_note": null
-      },
-      {
-        "id": "MH10",
-        "requirement": "Quality and reliability: testing strategy, robust error handling, and practical observability (logging/alerts).",
-        "weight": 2,
-        "priority": "LOW",
-        "evidence_signals": [
-          "Can describe unit/integration tests for APIs and pipelines.",
-          "Implements structured error handling and meaningful logs.",
-          "Shows awareness of alerting/monitoring basics and post-incident learnings."
-        ],
-        "negative_signals": [
-          "No testing habits; relies on manual checks only.",
-          "Ignores observability; cannot troubleshoot production issues."
+          "No API integration experience",
+          "Only theoretical knowledge of APIs"
         ],
         "implementation_note": null
       }
@@ -204,119 +195,101 @@
     "nice_to_have": [
       {
         "id": "NH1",
-        "skill": "LangChain or LlamaIndex experience building knowledge-based RAG features (document search, historical analysis).",
+        "skill": "Experience with LangChain or LlamaIndex",
         "weight": 3
       },
       {
         "id": "NH2",
-        "skill": "MCP (Model Context Protocol) or AI agent frameworks experience.",
-        "weight": 2
+        "skill": "Familiarity with MCP or AI agent frameworks",
+        "weight": 3
       },
       {
         "id": "NH3",
-        "skill": "CI/CD pipelines for automated testing and deployment.",
+        "skill": "CI/CD experience",
         "weight": 2
       },
       {
         "id": "NH4",
-        "skill": "Docker for containerized development and production parity.",
+        "skill": "Docker for containerized development",
         "weight": 2
-      },
-      {
-        "id": "NH5",
-        "skill": "Additional vector DB experience (Pinecone, Weaviate, or similar) beyond pgvector.",
-        "weight": 1
       }
     ]
   },
+  "bias_guardrails": {
+    "protected_attributes": [
+      "age",
+      "gender",
+      "race",
+      "ethnicity",
+      "religion",
+      "marital_status",
+      "disability"
+    ],
+    "enforcement": "Strip protected attributes prior to scoring"
+  },
   "semantic_ontology": {
     "normalized_terms": [
+      "Generative AI",
+      "Full-Stack Engineer",
+      "React.js",
+      "FastAPI",
       "Python",
       "JavaScript",
-      "TypeScript",
-      "React",
-      "FastAPI",
-      "REST API",
-      "OpenAPI",
-      "RAG",
-      "Retrieval-Augmented Generation",
-      "Embeddings",
-      "Vector Search",
-      "Hybrid Search",
       "Supabase",
       "PostgreSQL",
       "pgvector",
       "Claude API",
       "OpenAI API",
-      "Prompt Engineering",
-      "Cron Jobs",
+      "embeddings",
+      "RAG",
+      "chunking",
+      "vector search",
+      "semantic matching",
+      "grounding",
+      "DevOps",
       "Git",
-      "Cloud Deployment",
-      "Render",
-      "Vercel",
-      "Railway",
-      "AWS",
-      "GCP",
-      "LangChain",
-      "LlamaIndex",
-      "MCP",
-      "AI Agents",
+      "REST API",
+      "API integration",
       "CI/CD",
       "Docker",
-      "Pinecone",
-      "Weaviate"
-    ]
-  },
-  "scoring": {
-    "weight_distribution": {
-      "must_have_total": 90,
-      "nice_to_have_total": 10,
-      "total": 100
-    },
-    "rating_scale": {
-      "0": "No evidence",
-      "1": "Basic familiarity; limited depth",
-      "2": "Working proficiency; has shipped parts",
-      "3": "Strong; shipped in production with clear ownership",
-      "4": "Expert; repeatable success, can mentor and set standards"
-    },
-    "calculation": [
-      "Score each must-have (0–4) × weight; score each nice-to-have (0–4) × weight.",
-      "Total possible max = 4 × 100 = 400; normalize to 0–100 by (raw_score / 400) × 100."
+      "MCP",
+      "LangChain",
+      "LlamaIndex",
+      "AI agent frameworks",
+      "cloud deployment",
+      "cron jobs",
+      "testing",
+      "error handling",
+      "email delivery systems",
+      "data management",
+      "report generation",
+      "candidate insights",
+      "UI/UX"
     ],
-    "decision_thresholds": {
-      "strong_hire": ">= 80 AND no critical gap in RAG or Python production experience",
-      "hire": "70–79 with manageable gaps and strong learning/ownership signals",
-      "borderline": "60–69; proceed only with clear ramp plan and urgent need",
-      "no_hire": "< 60 or lacks production RAG evidence"
+    "semantic_threshold_defaults": {
+      "highest_confidence": 0.9,
+      "high_confidence": 0.88,
+      "medium_confidence": 0.86,
+      "min_acceptable": 0.85
     }
   },
-  "bias_guardrails": [
-    "Ignore protected attributes and non-job-relevant personal information.",
-    "Do not use school prestige or brand-name employers as scoring factors absent evidence of impact.",
-    "Evaluate on demonstrated outcomes: shipped features, measurable improvements, reliability/incident learnings.",
-    "Apply consistent structured questions mapped to must-have requirements for every candidate.",
-    "Accept equivalent experience from open-source, freelance, internships, or non-traditional paths if production-like."
-  ],
   "report_format": {
-    "output_fields": [
-      "overall_score_0_to_100",
-      "must_have_breakdown",
-      "nice_to_have_breakdown",
-      "top_evidence_quotes",
-      "key_risks_and_gaps",
-      "recommended_interview_focus_areas",
-      "hire_recommendation"
+    "length_target": "1-2 pages",
+    "output_language": "English",
+    "sections": [
+      "Role fit summary (overall score and hire/no-hire recommendation)",
+      "Must-have requirements score breakdown (with evidence quotes/snippets from CV)",
+      "Nice-to-have signals",
+      "Gaps and risks (what is missing or unclear)",
+      "Suggested interview questions to validate gaps",
+      "Implementation notes / context (if any scoring relaxations apply)"
     ],
-    "must_have_breakdown_item_format": "id, requirement, weight, rating_0_to_4, evidence, concerns",
-    "nice_to_have_breakdown_item_format": "id, skill, weight, rating_0_to_4, evidence"
+    "output_constraints": [
+      "Do not consider or mention protected attributes.",
+      "Every score claim must be supported by explicit CV evidence; otherwise mark as 'Not demonstrated'.",
+      "Keep output within 1-2 pages; use bullet points and concise justification.",
+      "If any must-have scores below 2, mark overall result as FAIL regardless of weighted score."
+    ]
   },
-  "metadata": {
-    "job_ref": "4RR955X7",
-    "location": "Ara Damansara, Petaling Jaya",
-    "work_mode": "Onsite",
-    "job_type": "Full-time",
-    "experience_range_years": "1–4",
-    "version": "3.1"
-  }
+  "assumptions": []
 }
