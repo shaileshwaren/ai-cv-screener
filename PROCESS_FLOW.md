@@ -54,7 +54,6 @@ Once the Run Pipeline UI is loaded (or you call `POST /run`), this is what runs 
   │          • Upserts rows into Supabase candidates table           │
   │          • Uploads CVs to Supabase Storage                       │
   │          • Generates embeddings → candidate_chunks                │
-  │          • Syncs NocoDB columns (add missing)                     │
   │          • Reloads PostgREST schema                               │
   │                                                                  │
   │  STEP 3: generate_detailed_reports.py                            │
@@ -68,7 +67,7 @@ Once the Run Pipeline UI is loaded (or you call `POST /run`), this is what runs 
   Supabase (candidates + candidate_chunks + Storage)
         │
         ▼
-  NocoDB (live sync with Supabase — view/filter candidates)
+  Supabase (view/filter candidates via your preferred client)
 ```
 
 ---
@@ -79,7 +78,7 @@ Once the Run Pipeline UI is loaded (or you call `POST /run`), this is what runs 
 |------|----------------|
 | Open Render URL | Render serves whatever app is connected to that service. This project’s app serves an HTML “Run Pipeline” UI at `/`. |
 | Click Run pipeline | Browser sends `POST /run` with job IDs → app starts `online_pipeline.py` in background → you see “Pipeline started” and can watch logs in Render. |
-| Pipeline (per job) | 1) python8: Manatal → score with OpenAI → CSV/JSON. 2) upload_supabase: CSV → Supabase + Storage + embeddings + NocoDB sync. 3) generate_detailed_reports: high scorers → HTML report → Storage + embeddings. |
-| Result | Data in Supabase and NocoDB; CVs and reports in Storage. |
+| Pipeline (per job) | 1) python8: Manatal → score with OpenAI → CSV/JSON. 2) upload_supabase: CSV → Supabase + Storage + embeddings. 3) generate_detailed_reports: high scorers → HTML report → Storage + embeddings. |
+| Result | Data in Supabase; CVs and reports in Storage. |
 
 To fix “I only see JSON or error on the Render page”: connect **this repository** to your Render web service and redeploy so `/` serves the UI from this project’s `app.py`.

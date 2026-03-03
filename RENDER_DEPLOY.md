@@ -32,9 +32,6 @@ The link to open: **https://your-service-name.onrender.com** (e.g. `https://recr
    - `SUPABASE_URL`
    - `SUPABASE_KEY`
    - `SUPABASE_DB_URL`
-   - `NOCODB_TOKEN`
-   - `NOCODB_BASE_ID`
-   - `NOCODB_CANDIDATES_TABLE_ID`
 5. **Deploy.** The web service will be live at `https://<your-service>.onrender.com`.
 
 ## Web service endpoints

@@ -36,14 +36,6 @@ An **AI-powered recruitment automation system** that streamlines candidate scree
 │   - pgvector        │
 │   - Storage Bucket  │
 └──────┬──────────────┘
-       │ Live Sync
-       ▼
-┌─────────────────────┐
-│   NocoDB            │ (User Interface)
-│   - No-code UI      │
-│   - Filters/Views   │
-│   - Collaboration   │
-└─────────────────────┘
        │
        ▼
 ┌─────────────────────┐
@@ -70,11 +62,6 @@ An **AI-powered recruitment automation system** that streamlines candidate scree
 | **Supabase** | Primary database & file storage | PostgreSQL, pgvector, Storage, PostgREST |
 | **PostgreSQL** | Relational database | v15+ with pgvector extension |
 | **pgvector** | Vector similarity search | Embedding storage & hybrid search |
-
-### **Frontend & Interface**
-| Platform | Purpose | Features |
-|----------|---------|----------|
-| **NocoDB** | No-code database interface | Live sync, filters, views, collaboration |
 
 ### **External Integrations**
 | Service | Purpose | API Version |
@@ -134,12 +121,6 @@ An **AI-powered recruitment automation system** that streamlines candidate scree
 - Strengths and gaps analysis
 - Uploaded to Supabase Storage with public URLs
 
-### 5. **Data Synchronization**
-- Automatic sync between Supabase and NocoDB
-- Column mapping and type conversion
-- Schema cache reloading
-- Real-time data updates
-
 ---
 
 ## Project Structure
@@ -151,8 +132,7 @@ supabase nocodb pipeline/
 │   ├── online_pipeline.py          # Main orchestrator (multi-job)
 │   ├── python8.py                  # AI scoring engine
 │   ├── upload_supabase.py          # Supabase upsert + embeddings
-│   ├── generate_detailed_reports.py # HTML report generator
-│   └── sync_nocodb.py              # NocoDB column sync
+│   └── generate_detailed_reports.py # HTML report generator
 │
 ├── 📄 Offline Mode Scripts
 │   ├── offline_pipeline.py         # Local file processing
@@ -191,15 +171,6 @@ supabase nocodb pipeline/
 │   │   ├── upload/                 # Scored CSVs & JSONs
 │   │   ├── reports/                # HTML reports
 │   │   └── resumes/                # Downloaded CVs
-│
-├── 🔍 Diagnostic Tools (Created)
-│   ├── diagnose_nocodb.py          # Column mismatch finder
-│   ├── fix_nocodb_columns.py       # Auto column cleanup
-│   ├── force_nocodb_sync.py        # Metadata sync trigger
-│   ├── verify_nocodb.py            # Table access test
-│   ├── discover_nocodb_bases.py    # Base/table discovery
-│   ├── rebuild_nocodb_table.py     # Full table rebuild
-│   └── update_table_id.py          # Config updater
 │
 └── 🚀 Batch Scripts (Windows)
     ├── setup.bat                   # Environment setup
@@ -242,16 +213,7 @@ Scored Data → Supabase candidates table (19 columns)
             → Trigger PostgREST schema reload
 ```
 
-### **4. NocoDB Sync**
-```
-Supabase Schema → Fetch column definitions
-                → Compare with NocoDB columns
-                → Add missing columns
-                → Update column types
-                → Refresh metadata
-```
-
-### **5. Report Generation**
+### **4. Report Generation**
 ```
 High-scoring candidates (≥75) → Re-score with detailed prompt
                               → Generate HTML report
@@ -317,11 +279,6 @@ SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_KEY=<service_role_key>
 SUPABASE_DB_URL=postgresql://postgres.<project>:password@...
 SUPABASE_STORAGE_BUCKET=candidate_files
-
-# NocoDB
-NOCODB_TOKEN=<api_token>
-NOCODB_BASE_ID=<base_id>
-NOCODB_CANDIDATES_TABLE_ID=<table_id>
 
 # Pipeline Settings
 MIN_SCORE_FOR_REPORT=75
@@ -397,8 +354,6 @@ python upload_supabase.py 3419430
 # 3. Generate reports only
 python generate_detailed_reports.py 3419430
 
-# 4. Sync NocoDB columns
-python sync_nocodb.py
 ```
 
 ### **Offline Mode (Local Files)**
@@ -424,7 +379,6 @@ python generate_offline_input.py 3419430
 
 ### **Database Statistics**
 - Supabase: 19 columns in `candidates` table
-- NocoDB: Synced with Supabase schema
 - Storage: CVs and HTML reports in `candidate_files` bucket
 - Embeddings: Vector search enabled via pgvector
 
@@ -436,10 +390,9 @@ python generate_offline_input.py 3419430
 2. **Consistency**: YAML rubrics ensure uniform evaluation criteria
 3. **Transparency**: Detailed scoring breakdowns with evidence
 4. **Semantic Search**: Find similar candidates using AI embeddings
-5. **No-Code Interface**: NocoDB provides user-friendly data access
-6. **Caching**: Prevents redundant API calls and costs
-7. **Flexibility**: Online (API) and offline (local files) modes
-8. **Extensibility**: Modular design allows easy feature additions
+5. **Caching**: Prevents redundant API calls and costs
+6. **Flexibility**: Online (API) and offline (local files) modes
+7. **Extensibility**: Modular design allows easy feature additions
 
 ---
 
@@ -450,7 +403,7 @@ python generate_offline_input.py 3419430
 | **AI/ML** | OpenAI GPT-4o-mini, text-embedding-3-small |
 | **Database** | Supabase (PostgreSQL + pgvector) |
 | **Storage** | Supabase Storage (S3-compatible) |
-| **Interface** | NocoDB (No-code database UI) |
+| **Interface** | Supabase Dashboard / any SQL or REST client |
 | **Backend** | Python 3.8+, FastAPI concepts |
 | **APIs** | Manatal ATS, OpenAI, Supabase REST |
 | **Document Processing** | pypdf, python-docx |

@@ -345,13 +345,13 @@ def build_detailed_scoring_prompt(rubric: dict, rubric_structure: Dict[str, Any]
     prompt += f"CANDIDATE RESUME:\n{clip(resume_text, Config.MAX_RESUME_CHARS)}\n\n"
 
     prompt += (
-        "SCORING SCALE (0-5):\n"
+        "SCORING SCALE (0-5, linear — 5 = fully meets requirement):\n"
         "0 = No evidence\n"
-        "1 = Basic familiarity; limited depth\n"
-        "2 = Working proficiency; has shipped parts\n"
-        "3 = Strong; shipped in production with clear ownership\n"
-        "4 = Expert; repeatable success, can mentor and set standards\n"
-        "5 = Outstanding; industry-level authority, defines best practices\n\n"
+        "1 = Minimal; little or no relevant evidence\n"
+        "2 = Partial; some evidence but significant gaps\n"
+        "3 = Adequate; meets requirement with sufficient evidence\n"
+        "4 = Strong; clearly meets requirement with good evidence\n"
+        "5 = Full; fully meets requirement with clear, specific evidence\n\n"
         "SCORING FORMULA: contribution = (score / 5) × weight\n"
         "overall_score = sum of all contributions (normalised to 0-100)\n\n"
         "CRITICAL INSTRUCTIONS:\n"
@@ -689,13 +689,13 @@ def generate_html_report(detailed_json: Dict[str, Any]) -> str:
     def score_color(score: float, max_score: float = 5) -> str:
         ratio = score / max_score if max_score > 0 else 0
         if ratio >= 1.0:
-            return "#15803d"   # Outstanding (5/5)
+            return "#15803d"   # Full (5/5)
         elif ratio >= 0.8:
-            return "#16a34a"   # Expert (4/5)
+            return "#16a34a"   # Strong (4/5)
         elif ratio >= 0.6:
-            return "#ca8a04"   # Strong/Working (3/5)
+            return "#ca8a04"   # Adequate (3/5)
         else:
-            return "#dc2626"   # Weak/None (0-2/5)
+            return "#dc2626"   # Partial/None (0-2/5)
 
     html = f"""<!DOCTYPE html>
 <html lang="en">

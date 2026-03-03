@@ -36,10 +36,6 @@ To push again later (e.g. after edits), use Source Control in Cursor (`Ctrl+Shif
    | SUPABASE_URL | From Supabase project â†’ Settings â†’ API |
    | SUPABASE_KEY | Supabase **service_role** key |
    | SUPABASE_DB_URL | Supabase â†’ Database â†’ Connection string (URI) |
-   | NOCODB_TOKEN | From NocoDB |
-   | NOCODB_BASE_ID | Your NocoDB base ID |
-   | NOCODB_CANDIDATES_TABLE_ID | Your NocoDB candidates table ID |
-
 3. Optional: `SUPABASE_STORAGE_BUCKET` (default: `candidate_files`), `TARGET_STAGE_NAME` (default: `Processing`), `MIN_SCORE_FOR_REPORT` (default: `85`).
 4. Save.
 
@@ -58,7 +54,7 @@ Open your Render URL, e.g.:
 
 **https://recruitment-pipeline-render.onrender.com**
 
-You should see the **Run recruitment pipeline** form. Enter a job ID (e.g. `3419430` or `3261113`), click **Run pipeline**, then check Render **Logs** for progress. Results go to Supabase and NocoDB.
+You should see the **Run recruitment pipeline** form. Enter a job ID (e.g. `3419430` or `3261113`), click **Run pipeline**, then check Render **Logs** for progress. Results go to Supabase.
 
 ---
 

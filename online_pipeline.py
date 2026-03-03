@@ -6,7 +6,7 @@ Fetches candidates from Manatal API and processes multiple jobs
 
 Workflow (per job):
 1) AI scoring (python8.py) - fetches from Manatal API automatically
-2) Upload to Supabase (upload_supabase.py) - direct upsert + embeddings + NocoDB sync
+2) Upload to Supabase (upload_supabase.py) - direct upsert + embeddings
 3) Generate detailed reports (generate_detailed_reports.py)
 
 Usage:

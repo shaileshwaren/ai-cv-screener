@@ -6,8 +6,7 @@ Reads the scored CSV for a given JOB_ID and:
   1. Upserts candidate rows into Supabase `candidates` table
   2. Uploads local CV files to Supabase Storage (candidate_files bucket)
   3. Generates embeddings and inserts into `candidate_chunks` table
-  4. Syncs NocoDB columns so all Supabase fields are visible
-  5. Reloads PostgREST schema cache
+  4. Reloads PostgREST schema cache
 
 Usage:
   python upload_supabase.py <JOB_ID>
@@ -17,9 +16,6 @@ Environment variables (set in .env):
   SUPABASE_KEY           - Supabase service role key
   SUPABASE_DB_URL        - Direct PostgreSQL connection string
   SUPABASE_STORAGE_BUCKET - Storage bucket name (default: candidate_files)
-  NOCODB_TOKEN           - NocoDB API token
-  NOCODB_BASE_ID         - NocoDB base ID
-  NOCODB_CANDIDATES_TABLE_ID - NocoDB candidates table ID
   OPENAI_API_KEY         - OpenAI key for embeddings (optional)
 """
 
@@ -30,7 +26,6 @@ import os
 import re
 import sys
 import logging
-import requests
 import psycopg2
 import psycopg2.extras
 from pathlib import Path
@@ -54,9 +49,6 @@ JOB_ID = str(sys.argv[1]).strip()
 INPUT_FILE = os.getenv("INPUT_FILE", str(Config.get_scored_csv_path(JOB_ID)))
 
 STORAGE_BUCKET = Config.SUPABASE_STORAGE_BUCKET
-NOCODB_TABLE_ID = Config.NOCODB_CANDIDATES_TABLE_ID
-NOCODB_TOKEN = Config.NOCODB_TOKEN
-NOCODB_BASE_URL = "https://app.nocodb.com"
 
 # =============================================================================
 # CSV LOADER
@@ -194,63 +186,6 @@ def _upsert_via_psycopg2(records: List[Dict[str, Any]]) -> None:
 
 
 # =============================================================================
-# NOCODB SYNC
-# =============================================================================
-
-def sync_nocodb_columns() -> None:
-    """Ensure all Supabase candidates columns are visible in NocoDB."""
-    if not NOCODB_TOKEN or not NOCODB_TABLE_ID:
-        logger.info("  NocoDB credentials not set — skipping column sync.")
-        return
-
-    HEADERS = {"xc-token": NOCODB_TOKEN, "Content-Type": "application/json"}
-
-    # Get Supabase columns
-    try:
-        conn = psycopg2.connect(Config.SUPABASE_DB_URL)
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT column_name FROM information_schema.columns "
-            "WHERE table_name='candidates' ORDER BY ordinal_position;"
-        )
-        supabase_cols = {r[0] for r in cur.fetchall()}
-        cur.close()
-        conn.close()
-    except Exception as e:
-        logger.warning(f"  Could not fetch Supabase columns: {e}")
-        return
-
-    # Get NocoDB columns
-    r = requests.get(f"{NOCODB_BASE_URL}/api/v1/db/meta/tables/{NOCODB_TABLE_ID}", headers=HEADERS)
-    if r.status_code != 200:
-        logger.warning(f"  NocoDB table fetch failed: {r.status_code}")
-        return
-    nocodb_cols = {c["column_name"]: c["id"] for c in r.json().get("columns", []) if c.get("column_name")}
-
-    uidt_map = {
-        "candidate_id": "Number", "job_id": "Number", "org_id": "Number", "ai_score": "Number",
-        "email": "Email", "resume_file": "URL",
-        "updated_at": "DateTime",
-    }
-    added = []
-    for col in supabase_cols:
-        if col not in nocodb_cols and col != "embedding":
-            uidt = uidt_map.get(col, "LongText")
-            r2 = requests.post(
-                f"{NOCODB_BASE_URL}/api/v1/db/meta/tables/{NOCODB_TABLE_ID}/columns",
-                headers=HEADERS,
-                json={"column_name": col, "title": col.replace("_", " ").title(), "uidt": uidt},
-            )
-            if r2.status_code in (200, 201):
-                added.append(col)
-
-    if added:
-        logger.info(f"  Added to NocoDB: {added}")
-    else:
-        logger.info("  NocoDB already in sync with Supabase ✅")
-
-
-# =============================================================================
 # RELOAD SCHEMA CACHE
 # =============================================================================
 
@@ -326,10 +261,6 @@ def main() -> int:
     # Upsert all candidates
     clean_records = [c for c, _ in candidates]
     upsert_candidates(supabase, clean_records)
-
-    # NocoDB sync
-    print("\nSyncing NocoDB columns...")
-    sync_nocodb_columns()
 
     # Schema cache reload
     print("\nReloading PostgREST schema cache...")

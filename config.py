@@ -43,13 +43,6 @@ class Config:
     SUPABASE_STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "candidate_files").strip()
 
     # =========================
-    # NocoDB Configuration
-    # =========================
-    NOCODB_TOKEN = os.getenv("NOCODB_TOKEN", "").strip()
-    NOCODB_BASE_ID = os.getenv("NOCODB_BASE_ID", "").strip()
-    NOCODB_CANDIDATES_TABLE_ID = os.getenv("NOCODB_CANDIDATES_TABLE_ID", "mvdxvcoapwtlmtx").strip()
-
-    # =========================
     # OpenAI Configuration
     # =========================
     OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")

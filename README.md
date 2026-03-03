@@ -10,8 +10,6 @@ Manatal API
 AI Scoring & CSV output
     ↓  (upload_supabase.py)
 Supabase (candidates table + Storage + embeddings)
-    ↓  (sync_nocodb.py, auto-called)
-NocoDB (live view of Supabase data)
     ↓  (generate_detailed_reports.py)
 HTML Reports
 ```
@@ -43,8 +41,6 @@ Edit `.env` and confirm all values:
 | `SUPABASE_KEY` | Supabase service role key |
 | `SUPABASE_DB_URL` | Direct PostgreSQL connection string |
 | `SUPABASE_STORAGE_BUCKET` | Storage bucket (default: `candidate_files`) |
-| `NOCODB_TOKEN` | NocoDB API token |
-| `NOCODB_CANDIDATES_TABLE_ID` | NocoDB candidates table ID |
 
 ### 3. Add a rubric
 
@@ -76,12 +72,6 @@ python online_pipeline.py 3419430 --skip-upload --skip-reports
 python upload_supabase.py 3419430
 ```
 
-### Sync NocoDB columns only
-
-```bash
-python sync_nocodb.py
-```
-
 ---
 
 ## Project Structure
@@ -89,8 +79,7 @@ python sync_nocodb.py
 ```
 supabase nocodb pipeline/
 ├── online_pipeline.py          # Main orchestrator
-├── upload_supabase.py          # Supabase upsert + embeddings + NocoDB sync
-├── sync_nocodb.py              # Standalone NocoDB column sync
+├── upload_supabase.py          # Supabase upsert + embeddings
 ├── python8.py                  # AI scoring (fetches from Manatal)
 ├── generate_detailed_reports.py
 ├── config.py                   # Centralized config
