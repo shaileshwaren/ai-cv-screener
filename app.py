@@ -23,9 +23,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 app = FastAPI(
-    title="Supabase-NocoDB Recruitment Pipeline",
-    description="Trigger the AI recruitment pipeline (Manatal → OpenAI → Supabase → NocoDB)",
-    version="1.0.0",
+    title="Airtable Recruitment Pipeline",
+    description="Trigger the AI recruitment pipeline (Manatal → OpenAI → Airtable)",
+    version="2.0.0",
 )
 
 # Allow browser to load the page and call /run from any origin (e.g. same Render URL)
@@ -119,7 +119,7 @@ RUN_UI_HTML = r"""
   <header class="header">
     <div>
       <h1><span aria-hidden="true">&#129302;</span> AI Recruitment System</h1>
-      <p class="subtitle">Powered by GPT-4o-mini &middot; Manatal ATS &middot; Supabase &middot; NocoDB</p>
+      <p class="subtitle">Powered by GPT-4o-mini &middot; Manatal ATS &middot; Airtable</p>
     </div>
     <span class="live" id="live-status">Live</span>
   </header>
@@ -612,7 +612,7 @@ def root():
 def api_info():
     """JSON API info for scripts."""
     return {
-        "service": "supabase-nocodb-pipeline",
+        "service": "airtable-pipeline",
         "docs": "/docs",
         "health": "/health",
         "run": "POST /run with body: { \"job_ids\": \"3419430\" }",
@@ -630,17 +630,20 @@ def get_results(
     job_id: str | None = Query(None, description="Single job ID (legacy)"),
     job_ids: str | None = Query(None, description="Comma-separated job IDs for multiple jobs"),
 ):
-    """Return scored candidates for one or more jobs from Supabase (for the dashboard UI)."""
+    """Return scored candidates for one or more jobs from Airtable (for the dashboard UI)."""
     try:
         from config import Config
-        from supabase import create_client
+        from airtable_client import AirtableClient
     except ImportError:
-        raise HTTPException(status_code=500, detail="Config or Supabase not available")
-    if not Config.SUPABASE_URL or not Config.SUPABASE_KEY:
-        raise HTTPException(status_code=503, detail="Supabase not configured")
+        raise HTTPException(status_code=500, detail="Config or AirtableClient not available")
+
+    if not Config.AIRTABLE_TOKEN:
+        raise HTTPException(status_code=503, detail="Airtable not configured")
+
     raw = (job_ids or job_id or "").strip()
     if not raw:
         raise HTTPException(status_code=400, detail="job_id or job_ids is required")
+
     ids_str = [s.strip() for s in raw.split(",") if s.strip()]
     try:
         jids = [int(x) for x in ids_str]
@@ -648,21 +651,42 @@ def get_results(
         raise HTTPException(status_code=400, detail="job_id(s) must be numeric")
     if not jids:
         raise HTTPException(status_code=400, detail="At least one job_id is required")
+
     try:
-        client = create_client(Config.SUPABASE_URL, Config.SUPABASE_KEY)
-        r = (
-            client.table("candidates")
-            .select(
-                "candidate_id, job_id, job_name, org_id, org_name, full_name, email, "
-                "resume_file, match_stage_name, ai_score, ai_summary, ai_strengths, ai_gaps, ai_report_html, ai_report_score"
-            )
-            .in_("job_id", jids)
-            .order("ai_score", desc=True)
-            .execute()
-        )
-        rows = r.data or []
+        client = AirtableClient()
+        formula = "OR(" + ",".join(f"{{job_id}}={jid}" for jid in jids) + ")"
+        records = client.get_records_by_formula(formula)
+
+        rows = []
+        for rec in records:
+            f = rec.get("fields", {})
+            # Normalise ai_report_html: Airtable stores it as attachments list
+            report_html = None
+            attachments = f.get("ai_report_html")
+            if isinstance(attachments, list) and attachments:
+                report_html = attachments[0].get("url")
+
+            rows.append({
+                "candidate_id": f.get("candidate_id"),
+                "job_id": f.get("job_id"),
+                "job_name": f.get("job_name"),
+                "org_name": f.get("organisation_name"),
+                "full_name": f.get("full_name"),
+                "email": f.get("email"),
+                "resume_file": f.get("resume_file"),
+                "match_stage_name": f.get("match_stage_name"),
+                "ai_score": f.get("tier2_score") or f.get("tier1_score"),
+                "ai_summary": f.get("ai_summary"),
+                "ai_strengths": f.get("ai_strengths"),
+                "ai_gaps": f.get("ai_gaps"),
+                "ai_report_html": report_html,
+            })
+
+        # Sort by score descending
+        rows.sort(key=lambda c: (c.get("ai_score") or 0), reverse=True)
         tier1 = [c for c in rows if c.get("ai_report_html")]
         return {"candidates": rows, "tier1": tier1, "job_id": jids[0], "job_ids": jids}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """config.py
 
-Centralized configuration for the Supabase-NocoDB recruitment pipeline.
+Centralized configuration for the Airtable recruitment pipeline.
 """
 
 from __future__ import annotations
@@ -33,19 +33,28 @@ class Config:
     # =========================
     MANATAL_API_TOKEN = os.getenv("MANATAL_API_TOKEN", "").strip()
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+    AIRTABLE_TOKEN = os.getenv("AIRTABLE_TOKEN", "").strip()
 
     # =========================
-    # Supabase Configuration
+    # Airtable Configuration
     # =========================
-    SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
-    SUPABASE_KEY = os.getenv("SUPABASE_KEY", "").strip()
-    SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL", "").strip()
-    SUPABASE_STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "candidate_files").strip()
+    AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID", "app285aKVVr7JYL43").strip()
+    AIRTABLE_TABLE_ID = os.getenv("AIRTABLE_TABLE_ID", "tblJ2OkvaWI7vi0vI").strip()
+    AIRTABLE_RUBRIC_TABLE_ID = os.getenv("AIRTABLE_RUBRIC_TABLE_ID", "tblZgr3F6DWEOorG7").strip()
+
+    # Airtable field names
+    AIRTABLE_CV_FIELD = "CV"
+    AIRTABLE_UNIQUE_KEY_FIELD = "match_id"
+
+    # Airtable limits
+    AIRTABLE_BATCH_SIZE = 10
+    AIRTABLE_UPLOAD_MAX_BYTES = 5 * 1024 * 1024  # 5 MB limit for direct uploads
 
     # =========================
     # OpenAI Configuration
     # =========================
     OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    REPORT_OPENAI_MODEL = os.getenv("REPORT_OPENAI_MODEL", "gpt-4o")
 
     # =========================
     # Manatal API Configuration
@@ -75,18 +84,17 @@ class Config:
     # =========================
     # Scoring Settings
     # =========================
-    MIN_SCORE_FOR_REPORT = int(os.getenv("MIN_SCORE_FOR_REPORT", "60"))
-    PASS_THRESHOLD = int(os.getenv("PASS_THRESHOLD", "70"))
+    PASS_THRESHOLD = int(os.getenv("PASS_THRESHOLD", "75"))
+    MIN_SCORE_FOR_REPORT = PASS_THRESHOLD  # single source of truth
 
     # =========================
-    # Field Mapping (CSV → Supabase)
+    # Field Mappings (CSV → Airtable)
     # =========================
     FIELD_MAP = {
-        "organisation_id":   "org_id",
-        "organisation_name": "org_name",
+        "organisation_id":   "organisation_id",
+        "organisation_name": "organisation_name",
         "job_id":            "job_id",
         "job_name":          "job_name",
-        "match_id":          "match_id",
         "created_at":        "created_at",
         "updated_at":        "updated_at",
         "match_stage_name":  "match_stage_name",
@@ -94,14 +102,31 @@ class Config:
         "full_name":         "full_name",
         "email":             "email",
         "resume_file":       "resume_file",
-        "ai_score":          "ai_score",
+        "tier1_score":       "tier1_score",
         "ai_summary":        "ai_summary",
         "ai_strengths":      "ai_strengths",
         "ai_gaps":           "ai_gaps",
-        "ai_report_html":    "ai_report_html",
         "rubric_version":    "rubric_version",
         "rubric_hash":       "rubric_hash",
-        "cache_key":         "cache_key",
+        "cv_text":           "cv_text",
+    }
+
+    # Field type definitions for upload normalisation
+    TEXT_FIELDS = {
+        "organisation_name",
+        "job_name",
+        "created_at", "updated_at",
+        "match_stage_name",
+        "full_name", "email",
+        "resume_file",
+        "ai_summary", "ai_strengths", "ai_gaps",
+        "rubric_version", "rubric_hash",
+        "cv_text",
+    }
+
+    NUMBER_FIELDS = {
+        "ai_score", "tier1_score", "tier2_score",
+        "organisation_id", "job_id", "candidate_id",
     }
 
     # =========================
@@ -112,10 +137,8 @@ class Config:
     def validate(cls) -> None:
         """Validate required configuration is present."""
         required = {
-            "OPENAI_API_KEY":   cls.OPENAI_API_KEY,
-            "SUPABASE_URL":     cls.SUPABASE_URL,
-            "SUPABASE_KEY":     cls.SUPABASE_KEY,
-            "SUPABASE_DB_URL":  cls.SUPABASE_DB_URL,
+            "OPENAI_API_KEY":  cls.OPENAI_API_KEY,
+            "AIRTABLE_TOKEN":  cls.AIRTABLE_TOKEN,
         }
         missing = [k for k, v in required.items() if not v]
         if missing:
@@ -145,7 +168,10 @@ class Config:
 
     @classmethod
     def get_rubric_path(cls, job_id: str) -> Path:
-        return cls.RUBRIC_DIR / f"rubric_{job_id}.json"
+        json_path = cls.RUBRIC_DIR / f"rubric_{job_id}.json"
+        if json_path.exists():
+            return json_path
+        return cls.RUBRIC_DIR / f"rubric_{job_id}.yaml"
 
     @classmethod
     def get_offline_json_path(cls, job_id: str) -> Path:

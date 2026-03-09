@@ -5,19 +5,21 @@ ONLINE PIPELINE - Multi-Job Mode
 Fetches candidates from Manatal API and processes multiple jobs
 
 Workflow (per job):
-1) AI scoring (python8.py) - fetches from Manatal API automatically
-2) Upload to Supabase (upload_supabase.py) - direct upsert + embeddings
+0) Rubric (generate_rubric.py) - checks Airtable cache; generates + stores if not found
+1) AI scoring (python8.py)     - fetches from Manatal API, scores against rubric
+2) Upload to Airtable (upload_airtable.py)
 3) Generate detailed reports (generate_detailed_reports.py)
 
 Usage:
   # Single job
   python online_pipeline.py 3419430
-  
+
   # Multiple jobs (comma-separated)
   python online_pipeline.py "3419430, 3261113"
-  
+
   # With optional flags
   python online_pipeline.py 3419430 --skip-upload --skip-reports
+  python online_pipeline.py 3419430 --skip-rubric   # skip rubric step entirely
 """
 
 from __future__ import annotations
@@ -31,14 +33,14 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 PYTHON8 = HERE / "python8.py"
-UPLOAD_SUPABASE = HERE / "upload_supabase.py"
+UPLOAD_AIRTABLE = HERE / "upload_airtable.py"
 GENERATE_REPORTS = HERE / "generate_detailed_reports.py"
+GENERATE_RUBRIC = HERE / "generate_rubric.py"
 CONFIG_FILE = HERE / "online_config.txt"
 ADVANCED_CONFIG_FILE = HERE / "online_advanced_config.txt"
 
 
 def run_step(step_num: int, total_steps: int, description: str, cmd: list[str]) -> None:
-    """Run a pipeline step with formatted output."""
     print(f"\n{'='*70}")
     print(f"[STEP {step_num}/{total_steps}] {description}")
     print(f"{'='*70}")
@@ -47,10 +49,8 @@ def run_step(step_num: int, total_steps: int, description: str, cmd: list[str]) 
 
 
 def warn_missing_env() -> None:
-    """Warn about missing environment variables."""
-    required = ["OPENAI_API_KEY", "SUPABASE_URL", "SUPABASE_KEY", "SUPABASE_DB_URL", "MANATAL_API_TOKEN"]
+    required = ["OPENAI_API_KEY", "AIRTABLE_TOKEN", "MANATAL_API_TOKEN"]
     missing = [k for k in required if not os.getenv(k)]
-
     if missing:
         print(
             "\n[WARN] Missing environment variables: "
@@ -60,18 +60,12 @@ def warn_missing_env() -> None:
 
 
 def validate_files_exist() -> None:
-    """Validate that all required scripts exist."""
     scripts = {
         "python8.py": PYTHON8,
-        "upload_supabase.py": UPLOAD_SUPABASE,
+        "upload_airtable.py": UPLOAD_AIRTABLE,
         "generate_detailed_reports.py": GENERATE_REPORTS,
     }
-
-    missing = []
-    for name, path in scripts.items():
-        if not path.exists():
-            missing.append(f"{name} not found at {path}")
-
+    missing = [f"{n} not found at {p}" for n, p in scripts.items() if not p.exists()]
     if missing:
         print("ERROR: Missing required scripts:")
         for msg in missing:
@@ -81,15 +75,14 @@ def validate_files_exist() -> None:
 
 
 def load_config() -> dict:
-    """Load online_config.txt and optionally online_advanced_config.txt."""
     config = {}
 
     if not CONFIG_FILE.exists():
         return {
-            "stage_name": "Processing",
+            "stage_name": "New Candidates",
             "skip_scoring": False,
             "skip_upload": False,
-            "generate_reports": True
+            "generate_reports": True,
         }
 
     for cfg_file in [CONFIG_FILE, ADVANCED_CONFIG_FILE]:
@@ -120,9 +113,10 @@ def load_config() -> dict:
 
 
 def process_single_job(job_id: str, config: dict, global_args: argparse.Namespace) -> bool:
-    """Process a single job. Returns True if successful, False otherwise."""
+    """Process a single job. Returns True on success."""
 
-    stage_name = config.get("stage_name", "Processing")
+    stage_name = config.get("stage_name", "New Candidates")
+    skip_rubric = global_args.skip_rubric or config.get("skip_rubric", False)
     skip_scoring = global_args.skip_scoring or config.get("skip_scoring", False)
     skip_upload = global_args.skip_upload or config.get("skip_upload", False)
     skip_reports = global_args.skip_reports or config.get("generate_reports", True) == False
@@ -134,31 +128,50 @@ def process_single_job(job_id: str, config: dict, global_args: argparse.Namespac
     print(f"INFO: Job name, org ID, and org name will be fetched from Manatal API")
     print(f"{'='*70}\n")
 
-    total_steps = sum([not skip_scoring, not skip_upload, not skip_reports])
+    total_steps = sum([not skip_rubric, not skip_scoring, not skip_upload, not skip_reports])
     step_num = 1
 
     try:
+        # ── STEP 0: Rubric ───────────────────────────────────────────────
+        if not skip_rubric:
+            run_step(
+                step_num, total_steps,
+                f"Rubric check/generate for job {job_id}",
+                [sys.executable, str(GENERATE_RUBRIC), str(job_id)],
+            )
+            step_num += 1
+        else:
+            print("\nSkipped: Rubric step")
+
         # ── STEP 1: AI Scoring ───────────────────────────────────────────
         if not skip_scoring:
-            run_step(step_num, total_steps, "AI Scoring (fetch from Manatal + score against rubric)",
-                     [sys.executable, str(PYTHON8), str(job_id)])
+            run_step(
+                step_num, total_steps,
+                "AI Scoring (fetch from Manatal + score against rubric)",
+                [sys.executable, str(PYTHON8), str(job_id)],
+            )
             step_num += 1
         else:
             print("\nSkipped: AI Scoring")
 
-        # ── STEP 2: Upload to Supabase ───────────────────────────────────
+        # ── STEP 2: Upload to Airtable ───────────────────────────────────
         if not skip_upload:
-            run_step(step_num, total_steps, "Upload to Supabase (upsert + embeddings + NocoDB sync)",
-                     [sys.executable, str(UPLOAD_SUPABASE), str(job_id)])
+            run_step(
+                step_num, total_steps,
+                "Upload to Airtable",
+                [sys.executable, str(UPLOAD_AIRTABLE), str(job_id)],
+            )
             step_num += 1
         else:
-            print("\nSkipped: Supabase Upload")
+            print("\nSkipped: Airtable Upload")
 
         # ── STEP 3: Generate Detailed Reports ────────────────────────────
         if not skip_reports:
-            run_step(step_num, total_steps, "Generate Detailed Reports",
-                     [sys.executable, str(GENERATE_REPORTS), str(job_id)])
-            step_num += 1
+            run_step(
+                step_num, total_steps,
+                "Generate Detailed Reports",
+                [sys.executable, str(GENERATE_REPORTS), str(job_id)],
+            )
         else:
             print("\nSkipped: Detailed Reports")
 
@@ -169,7 +182,7 @@ def process_single_job(job_id: str, config: dict, global_args: argparse.Namespac
 
     except subprocess.CalledProcessError as e:
         print(f"\n{'='*70}")
-        print(f"ERROR: Job {job_id} failed at step")
+        print(f"ERROR: Job {job_id} failed")
         print(f"{'='*70}")
         print(f"Exit code: {e.returncode}")
         print(f"Command: {' '.join(e.cmd)}")
@@ -179,7 +192,7 @@ def process_single_job(job_id: str, config: dict, global_args: argparse.Namespac
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
-        description="Online Pipeline: Fetch and process candidates from Manatal API → Supabase → NocoDB",
+        description="Online Pipeline: Fetch and process candidates from Manatal API → Airtable",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -188,15 +201,17 @@ Examples:
 
   # Process multiple jobs (comma-separated)
   python online_pipeline.py "3419430, 3261113, 3600123"
-  
+
   # Skip specific steps
   python online_pipeline.py 3419430 --skip-upload --skip-reports
-        """
+  python online_pipeline.py 3419430 --skip-rubric
+        """,
     )
 
     parser.add_argument("job_ids", help="Job IDs to process (comma-separated for multiple)")
+    parser.add_argument("--skip-rubric", action="store_true", help="Skip auto-rubric generation (use existing rubric or fail)")
     parser.add_argument("--skip-scoring", action="store_true", help="Skip AI scoring step")
-    parser.add_argument("--skip-upload", action="store_true", help="Skip Supabase upload step")
+    parser.add_argument("--skip-upload", action="store_true", help="Skip Airtable upload step")
     parser.add_argument("--skip-reports", action="store_true", help="Skip detailed report generation")
 
     args = parser.parse_args(argv[1:])
@@ -206,7 +221,7 @@ Examples:
     job_ids = [jid.strip() for jid in args.job_ids.split(",")]
 
     print(f"\n{'='*70}")
-    print("ONLINE PIPELINE - SUPABASE/NOCODB MODE")
+    print("ONLINE PIPELINE - AIRTABLE MODE")
     print(f"{'='*70}\n")
     print(f"Processing {len(job_ids)} job(s): {', '.join(job_ids)}\n")
 

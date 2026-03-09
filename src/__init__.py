@@ -1,1 +1,1 @@
-"""src package for supabase nocodb pipeline."""
+"""src package for airtable recruitment pipeline."""

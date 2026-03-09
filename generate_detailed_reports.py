@@ -39,102 +39,81 @@ from openai import OpenAI
 
 # Import from consolidated modules
 from config import Config
-from src.supabase_client import SupabaseClient
-from src.embedding_client import EmbeddingClient
+from airtable_client import AirtableClient
 from utils import extract_resume_text, clip
 
 
 # =========================
-# Supabase update function
+# Airtable update function
 # =========================
-def update_supabase_html_and_embeddings(
+def update_airtable_report(
     match_id: str,
     candidate_id: int,
     job_id: int,
     detailed_json: dict,
     html_path: Path,
-    resume_text: str,
-    supabase: SupabaseClient,
-    embedder: EmbeddingClient
 ) -> bool:
-    """Update the ai_report_html field in Supabase and generate embeddings. Candidates table uses match_id as primary key."""
-    
+    """Upload the HTML report to Airtable and update candidate record fields.
+
+    Finds the candidate record by match_id (formula field = job_id-candidate_id),
+    uploads the HTML as an attachment to ai_report_html, and stores the
+    detailed JSON string + tier2_score.
+    """
     try:
+        at = AirtableClient()
         html_text = html_path.read_text(encoding="utf-8")
-        
-        # 1. Upload HTML file to Supabase Storage
         file_name = f"{candidate_id}_report_{job_id}.html"
-        storage_path = f"{candidate_id}/reports/{file_name}"
-        
-        supabase.client.storage.from_(Config.SUPABASE_STORAGE_BUCKET).upload(
-            path=storage_path,
-            file=html_text.encode("utf-8"),
-            file_options={"content-type": "text/html", "upsert": "true"},
-        )
-        
-        # Wrap in HTML Preview proxy because Supabase blocks inline HTML rendering on its default domains
-        base_url = supabase.client.storage.from_(Config.SUPABASE_STORAGE_BUCKET).get_public_url(storage_path)
-        public_html_url = f"https://htmlpreview.github.io/?{base_url}"
-        
-        # 2. Update only report-related fields (ai_report_html, ai_report_score). Leave ai_score unchanged for Candidate Results.
+
+        # Resolve the Airtable record ID for this candidate
+        formula = f"AND({{job_id}}={job_id}, {{candidate_id}}={candidate_id})"
+        records = at.get_records_by_formula(formula)
+        if not records:
+            print(f"[WARN] No Airtable record found for job_id={job_id} candidate_id={candidate_id}")
+            return False
+
+        record_id = records[0]["id"]
         report_score = int(detailed_json.get("overall_score") or detailed_json.get("ai_score") or 0)
-        supabase.client.table("candidates").update({
-            "ai_report_html": public_html_url,
-            "ai_report_score": report_score,
-        }).eq("match_id", match_id).execute()
-        
-        # 3. Extract clean text from HTML for embedding
-        import unicodedata
-        clean_html_text = re.sub(r'<[^>]+>', ' ', html_text)
-        clean_html_text = unicodedata.normalize("NFKD", clean_html_text)
-        clean_html_text = " ".join(clean_html_text.split())
-        
-        # 3. Create rich text block for embedding
-        strengths = detailed_json.get("ai_strengths", "")
-        gaps = detailed_json.get("ai_gaps", "")
-        summary = detailed_json.get("ai_summary", "")
-        
-        chunk_text = (
-            f"Candidate Summary: {summary}\n\n"
-            f"Strengths: {strengths}\n\n"
-            f"Gaps: {gaps}\n\n"
-            f"Detailed Report:\n{clean_html_text}\n\n"
-            f"Resume Excerpt:\n{clip(resume_text, 2000)}"
+
+        # Upload HTML as attachment to ai_report_html field
+        at.upload_text_as_attachment(
+            record_id=record_id,
+            field_name="ai_report_html",
+            text_content=html_text,
+            filename=file_name,
         )
-        
-        # 4. Generate Vector Embedding
-        embedding_vector = embedder.generate_embedding(chunk_text)
-        if embedding_vector:
-            # Upsert into candidate_chunks
-            chunk_data = {
-                "candidate_id": candidate_id,
-                "job_id": job_id,
-                "chunk_text": chunk_text,
-                "embedding": embedding_vector,
-                "chunk_index": 0
-            }
-            supabase.client.table("candidate_chunks").upsert(chunk_data).execute()
-            return True
-            
-        return False
-        
+
+        # Store detailed JSON string and tier2_score
+        at.update_record(record_id, {
+            "ai_detailed_json": json.dumps(detailed_json, ensure_ascii=False),
+            "tier2_score": report_score,
+            "tier2_status": "PASS" if report_score >= Config.PASS_THRESHOLD else "FAIL",
+        })
+
+        return True
+
     except Exception as e:
-        print(f"[WARN] Supabase update/embedding failed: {e}")
+        print(f"[WARN] Airtable report update failed: {e}")
         return False
 
 
 # =========================
 # Rubric loading / parsing
 # =========================
-def load_rubric_json(job_id: str, supabase: Optional[SupabaseClient] = None) -> dict:
-    """Load rubric JSON for a job, preferring Supabase rubrics table.
+def load_rubric_json(job_id: str) -> dict:
+    """Load rubric JSON for a job.
 
-    Supabase is treated as the runtime source of truth for rubrics; local files
-    are reserved for authoring/export. This assumes a `rubrics` table where the
-    latest rubric for a given job_id is stored in the `rubric` JSONB column.
+    Tries local rubric file first (primary), then falls back to Airtable Rubric table.
     """
-    client = supabase or SupabaseClient()
-    return client.get_rubric(job_id)
+    rubric_path = Config.get_rubric_path(job_id)
+    if rubric_path.exists():
+        return json.loads(rubric_path.read_text(encoding="utf-8"))
+
+    # Fallback: Airtable Rubric table
+    at = AirtableClient()
+    rubric = at.get_rubric(job_id)
+    if not rubric:
+        raise LookupError(f"No rubric found for job_id={job_id!r} (checked local file and Airtable)")
+    return rubric
 
 
 def parse_rubric_structure(rubric: dict) -> Dict[str, Any]:
@@ -1064,8 +1043,6 @@ def main() -> int:
     
     try:
         Config.validate()
-        supabase = SupabaseClient()
-        embedder = EmbeddingClient()
         openai_client = OpenAI(api_key=Config.OPENAI_API_KEY)
     except ValueError as e:
         print(f"ERROR: {e}", file=sys.stderr)
@@ -1080,8 +1057,8 @@ def main() -> int:
         return 2
     
     try:
-        rubric = load_rubric_json(job_id, supabase=supabase)
-        print(f"Loaded rubric for job_id={job_id} from Supabase rubrics table")
+        rubric = load_rubric_json(job_id)
+        print(f"Loaded rubric for job_id={job_id}")
         rubric_structure = parse_rubric_structure(rubric)
     except Exception as e:
         print(f"ERROR: Failed to load rubric: {e}")
@@ -1151,22 +1128,19 @@ def main() -> int:
             
             cache_key = candidate.get("cache_key", "")
             
-            # Update Supabase (candidates table uses match_id as primary key)
+            # Upload report to Airtable
             match_id = (candidate.get("match_id") or "").strip() or f"{job_id}-{candidate_id}"
-            if update_supabase_html_and_embeddings(
+            if update_airtable_report(
                 match_id,
                 int(candidate_id),
                 int(job_id),
                 detailed_json,
                 html_path,
-                resume_text,
-                supabase,
-                embedder,
             ):
                 uploaded_count += 1
-                print(f"  ✓ Uploaded to Supabase & Generated Embeddings")
+                print(f"  ✓ Uploaded report to Airtable")
             else:
-                print(f"  ✗ Supabase upload failed")
+                print(f"  ✗ Airtable upload failed")
         
         except Exception as e:
             print(f"  ✗ Error: {e}")
@@ -1178,7 +1152,7 @@ def main() -> int:
     print(f"AI-Powered Report Generation Complete")
     print(f"{'='*70}")
     print(f"Generated: {generated_count} reports (REAL AI scoring - no placeholders!)")
-    print(f"Uploaded: {uploaded_count} to Supabase with Embeddings")
+    print(f"Uploaded: {uploaded_count} to Airtable")
     print(f"Output: {Config.REPORTS_DIR}/")
     print(f"{'='*70}\n")
     

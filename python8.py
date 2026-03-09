@@ -17,7 +17,7 @@ from openai import OpenAI
 # Import from consolidated modules
 from config import Config
 from utils import sha256_text, safe_filename, clip, extract_resume_text
-from src.supabase_client import SupabaseClient
+from airtable_client import AirtableClient
 
 
 # =========================
@@ -318,13 +318,25 @@ def main() -> int:
     export_dir = Config.OUTPUT_DIR
     upload_dir = Config.UPLOAD_DIR
 
-    # Load rubric once (Supabase is runtime source of truth)
-    supabase = SupabaseClient()
-    try:
-        rubric = supabase.get_rubric(job_id)
-    except Exception as e:
-        print(f"ERROR: Failed to load rubric for Job ID {job_id} from Supabase: {e}", file=sys.stderr)
-        return 2
+    # Load rubric: local file is primary source, Airtable Rubric table is fallback
+    rubric_path = Config.get_rubric_path(job_id)
+    if rubric_path.exists():
+        try:
+            rubric = json.loads(rubric_path.read_text(encoding="utf-8"))
+            print(f"Loaded rubric from local file: {rubric_path}")
+        except Exception as e:
+            print(f"ERROR: Failed to parse local rubric at {rubric_path}: {e}", file=sys.stderr)
+            return 2
+    else:
+        try:
+            at = AirtableClient()
+            rubric = at.get_rubric(job_id)
+            if not rubric:
+                raise LookupError(f"No rubric found in Airtable for job_id={job_id!r}")
+            print(f"Loaded rubric from Airtable for job_id={job_id}")
+        except Exception as e:
+            print(f"ERROR: Failed to load rubric for Job ID {job_id}: {e}", file=sys.stderr)
+            return 2
 
     rubric_json = rubric_compact_json(rubric)
     # Version is in metadata.version for new JSON schema; fall back to top-level
