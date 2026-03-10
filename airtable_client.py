@@ -311,15 +311,15 @@ class AirtableClient:
     def get_rubric(self, job_id: str) -> Optional[Dict[str, Any]]:
         """Fetch the rubric JSON for a job from the Rubric table.
 
-        The Rubric table has fields: rubric_name (primary), rubric_json.
-        rubric_name is expected to be the job_id string.
+        Looks up by the numeric job_id field.
         """
         client = AirtableClient(
             token=self.token,
             base_id=self.base_id,
             table_id=Config.AIRTABLE_RUBRIC_TABLE_ID,
         )
-        records = client.get_records_by_formula(f"{{rubric_name}}='{job_id}'")
+        # job_id is a numeric field — no quotes in formula
+        records = client.get_records_by_formula(f"{{job_id}}={job_id}")
         if not records:
             return None
         raw = records[0]["fields"].get("rubric_json", "")
@@ -331,15 +331,30 @@ class AirtableClient:
             return None
 
     def upsert_rubric(self, job_id: str, rubric: Dict[str, Any]) -> None:
-        """Upsert a rubric into the Rubric table (keyed by rubric_name = job_id)."""
+        """Upsert a rubric into the Rubric table (keyed by numeric job_id field).
+
+        rubric_name is set to RoleName_YYYYMMDD (e.g. SeniorMSDynamicsCRMDeveloper_20260309).
+        """
+        from datetime import date
+
         client = AirtableClient(
             token=self.token,
             base_id=self.base_id,
             table_id=Config.AIRTABLE_RUBRIC_TABLE_ID,
         )
-        existing_id = client.find_record_by_field("rubric_name", str(job_id))
+
+        # Build rubric_name from role + today's date
+        role_raw = rubric.get("role", "Unknown")
+        role_slug = "".join(w.capitalize() for w in role_raw.split())
+        rubric_name = f"{role_slug}_{date.today().strftime('%Y%m%d')}"
+
+        # Look up existing record by numeric job_id field
+        records = client.get_records_by_formula(f"{{job_id}}={job_id}")
+        existing_id = records[0]["id"] if records else None
+
         payload = {
-            "rubric_name": str(job_id),
+            "job_id":      int(job_id),
+            "rubric_name": rubric_name,
             "rubric_json": json.dumps(rubric, ensure_ascii=False),
         }
         if existing_id:
