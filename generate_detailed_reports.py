@@ -1082,7 +1082,23 @@ def main() -> int:
     
     generated_count = 0
     uploaded_count = 0
-    
+
+    # Build Airtable lookup: cache_key → True if report already uploaded
+    print(f"Fetching existing Airtable records for job_id={job_id}...")
+    try:
+        at_check = AirtableClient()
+        existing_records = at_check.get_records_by_formula(f"{{job_id}}={job_id}")
+        airtable_has_report: Dict[str, bool] = {
+            r["fields"]["cache_key"]: bool(r["fields"].get("ai_report_html"))
+            for r in existing_records
+            if r["fields"].get("cache_key")
+        }
+        skippable = sum(1 for v in airtable_has_report.values() if v)
+        print(f"Found {len(airtable_has_report)} candidate record(s), {skippable} already have a report\n")
+    except Exception as e:
+        print(f"[WARN] Could not fetch Airtable records for skip check: {e}\n")
+        airtable_has_report = {}
+
     print(f"\n{'='*70}")
     print(f"Generating Detailed AI-Powered Reports for Job {job_id}")
     print(f"{'='*70}")
@@ -1095,8 +1111,14 @@ def main() -> int:
         ai_score = float(candidate.get("ai_score", 0))
         candidate_id = candidate.get("candidate_id", "")
         full_name = candidate.get("full_name", "Unknown")
-        
+        cache_key = candidate.get("cache_key", "")
+
         print(f"Processing: {full_name} (Score: {ai_score}, ID: {candidate_id})")
+
+        # Skip if report already exists in Airtable for this rubric version
+        if cache_key and airtable_has_report.get(cache_key):
+            print(f"  Skipped (Airtable): report already exists")
+            continue
         
         try:
             resume_text = ""
@@ -1165,9 +1187,7 @@ def main() -> int:
             
             generated_count += 1
             print(f"  ✓ Generated: {json_path.name}, {html_path.name}")
-            
-            cache_key = candidate.get("cache_key", "")
-            
+
             # Upload report to Airtable
             match_id = (candidate.get("match_id") or "").strip() or f"{job_id}-{candidate_id}"
             if update_airtable_report(
