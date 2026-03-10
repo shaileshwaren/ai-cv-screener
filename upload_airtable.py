@@ -192,6 +192,13 @@ def main() -> int:
         rubric_text = rubric_path.read_text(encoding="utf-8", errors="replace")[:100_000]
         print(f"[OK] Loaded rubric text ({len(rubric_text)} chars) for job {job_id_from_rows}\n")
 
+    # Resolve Job record ID for link field (once for all candidates)
+    job_record_id: Optional[str] = airtable.get_job_record_id(job_id_from_rows)
+    if job_record_id:
+        print(f"[OK] Job record found: {job_record_id} — will link candidates\n")
+    else:
+        print(f"[WARN] No Job record found for job_id={job_id_from_rows} — candidates won't be linked\n")
+
     # Prepare records
     prepared: List[Dict[str, Any]] = []
     missing_key = 0
@@ -208,6 +215,8 @@ def main() -> int:
         fields = map_row_to_airtable_fields(row)
         if rubric_text:
             fields["rubric_text"] = rubric_text
+        if job_record_id:
+            fields["job"] = [job_record_id]
 
         prepared.append({
             "key": key_val,

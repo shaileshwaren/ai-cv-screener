@@ -305,6 +305,58 @@ class AirtableClient:
         )
 
     # ------------------------------------------------------------------
+    # Job helpers (Job table)
+    # ------------------------------------------------------------------
+
+    def get_job_record_id(self, job_id: str) -> Optional[str]:
+        """Return the Airtable record ID for a Job row, or None if not found."""
+        client = AirtableClient(
+            token=self.token,
+            base_id=self.base_id,
+            table_id=Config.AIRTABLE_JOB_TABLE_ID,
+        )
+        # job_id is the numeric primary field in the Job table
+        records = client.get_records_by_formula(f"{{job_id}}={job_id}")
+        return records[0]["id"] if records else None
+
+    def upsert_job(
+        self,
+        job_id: str,
+        job_name: str,
+        jd_text: str = "",
+        client_id: Optional[int] = None,
+        client_name: str = "",
+    ) -> str:
+        """Create or update a Job record. Returns the Airtable record ID."""
+        client = AirtableClient(
+            token=self.token,
+            base_id=self.base_id,
+            table_id=Config.AIRTABLE_JOB_TABLE_ID,
+        )
+        records = client.get_records_by_formula(f"{{job_id}}={job_id}")
+        existing_id = records[0]["id"] if records else None
+
+        payload: Dict[str, Any] = {
+            "job_id":   int(job_id),
+            "job_name": job_name,
+        }
+        if jd_text:
+            payload["jd"] = jd_text
+        if client_id is not None:
+            payload["client_id"] = int(client_id)
+        if client_name:
+            payload["client_name"] = client_name
+
+        if existing_id:
+            client.update_record(existing_id, payload)
+            return existing_id
+        else:
+            # batch_create returns nothing; re-fetch to get the new record ID
+            client.batch_create([payload])
+            records = client.get_records_by_formula(f"{{job_id}}={job_id}")
+            return records[0]["id"] if records else ""
+
+    # ------------------------------------------------------------------
     # Rubric helpers (Rubric table)
     # ------------------------------------------------------------------
 
@@ -352,11 +404,17 @@ class AirtableClient:
         records = client.get_records_by_formula(f"{{job_id}}={job_id}")
         existing_id = records[0]["id"] if records else None
 
-        payload = {
+        # Resolve Job record ID for the link field
+        job_record_id = self.get_job_record_id(job_id)
+
+        payload: Dict[str, Any] = {
             "job_id":      int(job_id),
             "rubric_name": rubric_name,
             "rubric_json": json.dumps(rubric, ensure_ascii=False),
         }
+        if job_record_id:
+            payload["job"] = [job_record_id]
+
         if existing_id:
             client.update_record(existing_id, payload)
         else:

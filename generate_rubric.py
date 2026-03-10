@@ -1222,6 +1222,21 @@ def main():
 
     # 6. Parse and upload to Airtable — no local file save
     rubric = json.loads(content)
+
+    # Ensure the Job record exists before linking the rubric to it
+    jd_for_job = jd_context[:50_000]  # store full JD text in Job table
+    org = job_data.get("organization")
+    client_id   = int(org) if isinstance(org, (int, float)) else None
+    client_name = job_data.get("organisation_name", "")
+    at.upsert_job(
+        job_id=job_id,
+        job_name=job_data.get("position_name", ""),
+        jd_text=jd_for_job,
+        client_id=client_id,
+        client_name=client_name,
+    )
+    print(f"✅ Job record upserted in Airtable for job_id={job_id}")
+
     at.upsert_rubric(job_id, rubric)
 
     print()
