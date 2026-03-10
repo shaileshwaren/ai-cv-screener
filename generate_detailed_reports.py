@@ -82,11 +82,18 @@ def update_airtable_report(
             filename=file_name,
         )
 
-        # Store detailed JSON string and tier2_score
+        # Use the rubric-driven recommendation if available; fall back to threshold
+        recommendation = (detailed_json.get("recommendation") or "").strip().upper()
+        if recommendation not in ("PASS", "FAIL"):
+            recommendation = "PASS" if report_score >= Config.PASS_THRESHOLD else "FAIL"
+
         at.update_record(record_id, {
             "ai_detailed_json": json.dumps(detailed_json, ensure_ascii=False),
             "tier2_score": report_score,
-            "tier2_status": "PASS" if report_score >= Config.PASS_THRESHOLD else "FAIL",
+            "tier2_status": recommendation,
+            "ai_summary": detailed_json.get("ai_summary") or "",
+            "ai_strengths": detailed_json.get("ai_strengths") or "",
+            "ai_gaps": detailed_json.get("ai_gaps") or "",
         })
 
         return True
@@ -147,38 +154,6 @@ def parse_rubric_structure(rubric: dict) -> Dict[str, Any]:
                 compliance.append({"item": comp.get("item", comp.get("requirement", "")), "details": comp.get("details", "")})
             elif isinstance(comp, str) and comp:
                 compliance.append({"item": comp, "details": ""})
-
-    # ===== COMPLIANCE: NORMALIZE TO EXACTLY 3 (education, years, location) =====
-    COMPLIANCE_DEFAULTS = [
-        "Education (degree, masters, or equivalent qualification as required by the role)",
-        "Years of related experience (as specified in job requirements)",
-        "Location (onsite/remote/region as required by the role)",
-    ]
-    education_keywords = ("education", "degree", "qualification", "masters", "bachelor", "diploma")
-    experience_keywords = ("year", "experience", "years of")
-    location_keywords = ("location", "onsite", "remote", "based", "region", "relocation")
-
-    def _match_category(text: str, keywords: tuple) -> bool:
-        t = (text or "").lower()
-        return any(k in t for k in keywords)
-
-    def _pick_item(candidates: List[dict], keywords: tuple, default: str) -> str:
-        for c in candidates:
-            item = (c.get("item") or c.get("requirement") or "").strip()
-            if _match_category(item, keywords):
-                return item
-        return default
-
-    normalized_compliance: List[dict] = []
-    for i, default_label in enumerate(COMPLIANCE_DEFAULTS):
-        if i == 0:
-            label = _pick_item(compliance, education_keywords, default_label)
-        elif i == 1:
-            label = _pick_item(compliance, experience_keywords, default_label)
-        else:
-            label = _pick_item(compliance, location_keywords, default_label)
-        normalized_compliance.append({"item": label, "details": ""})
-    compliance = normalized_compliance
 
     # ===== MUST-HAVE PARSING =====
     # New schema: requirements.must_have with id, evidence_signals, negative_signals
@@ -288,9 +263,9 @@ def build_detailed_scoring_prompt(rubric: dict, rubric_structure: Dict[str, Any]
         prompt += "SEMANTIC GUIDANCE (accept equivalent terms for these):\n"
         prompt += ", ".join(semantic_terms[:30]) + "\n\n"
 
-    # Compliance items (always exactly 3: education, years of experience, location)
+    # Compliance requirements (as defined in the rubric — PASS/FAIL only)
     if compliance_items:
-        prompt += "COMPLIANCE REQUIREMENTS (PASS/FAIL — exactly 3 items: Education, Years of related experience, Location):\n"
+        prompt += f"COMPLIANCE REQUIREMENTS (PASS/FAIL — {len(compliance_items)} item(s) as defined in rubric):\n"
         for i, item in enumerate(compliance_items, 1):
             prompt += f"{i}. {item.get('item', '')}\n"
         prompt += "\n"
@@ -359,14 +334,13 @@ def build_detailed_scoring_prompt(rubric: dict, rubric_structure: Dict[str, Any]
         "CRITICAL INSTRUCTIONS:\n"
         f"1. The must_have array MUST contain EXACTLY {len(must_have_reqs)} items using IDs {mh_ids}.\n"
         f"2. The nice_to_have array MUST contain EXACTLY {len(nice_to_have_skills)} items using IDs {nh_ids}.\n"
-        "3. The compliance array MUST contain EXACTLY 3 items (Education, Years of related experience, Location).\n"
-        "4. Use the EXACT item ID, requirement text, and weight from the rubric. Do NOT rephrase.\n"
+        f"3. The compliance array MUST contain EXACTLY {len(compliance_items)} item(s) matching the rubric above.\n"
+        "4. Use the EXACT item ID, requirement text, and weight from the rubric. Do NOT rephrase or add criteria.\n"
         "5. Provide specific evidence quotes from the resume for each score.\n"
-        f"6. Floor rule: if ANY must-have score < 2, set floor_triggered=true and recommendation=\"FAIL\".\n"
-        f"7. Pass threshold: overall_score >= {pass_threshold} (unless floor triggered).\n"
-        f"8. overall_score MUST equal sum of (score/{max_score} × weight) for all items.\n"
-        "9. Evaluate on demonstrated outcomes only. Ignore protected attributes (age, gender, race, etc.).\n"
-        "10. Respond with ONLY valid JSON. No markdown, no code blocks, no preamble.\n"
+        f"6. Pass threshold: overall_score >= {pass_threshold}. Set recommendation to PASS or FAIL accordingly.\n"
+        f"7. overall_score MUST equal sum of (score/{max_score} × weight) for all items.\n"
+        "8. Evaluate on demonstrated outcomes only. Ignore protected attributes (age, gender, race, etc.).\n"
+        "9. Respond with ONLY valid JSON. No markdown, no code blocks, no preamble.\n"
     )
 
     if bias_guardrails:

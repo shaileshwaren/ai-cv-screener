@@ -318,24 +318,31 @@ def main() -> int:
     export_dir = Config.OUTPUT_DIR
     upload_dir = Config.UPLOAD_DIR
 
-    # Load rubric: local file is primary source, Airtable Rubric table is fallback
-    rubric_path = Config.get_rubric_path(job_id)
-    if rubric_path.exists():
-        try:
-            rubric = json.loads(rubric_path.read_text(encoding="utf-8"))
-            print(f"Loaded rubric from local file: {rubric_path}")
-        except Exception as e:
-            print(f"ERROR: Failed to parse local rubric at {rubric_path}: {e}", file=sys.stderr)
-            return 2
-    else:
-        try:
-            at = AirtableClient()
-            rubric = at.get_rubric(job_id)
-            if not rubric:
-                raise LookupError(f"No rubric found in Airtable for job_id={job_id!r}")
+    # Load rubric: Airtable is the primary source of truth; local file is fallback only
+    rubric = None
+    try:
+        at = AirtableClient()
+        rubric = at.get_rubric(job_id)
+        if rubric:
             print(f"Loaded rubric from Airtable for job_id={job_id}")
-        except Exception as e:
-            print(f"ERROR: Failed to load rubric for Job ID {job_id}: {e}", file=sys.stderr)
+    except Exception as e:
+        print(f"[WARN] Airtable rubric load failed: {e}")
+
+    if not rubric:
+        rubric_path = Config.get_rubric_path(job_id)
+        if rubric_path.exists():
+            try:
+                rubric = json.loads(rubric_path.read_text(encoding="utf-8"))
+                print(f"[WARN] Airtable rubric not found — loaded from local file: {rubric_path}")
+            except Exception as e:
+                print(f"ERROR: Failed to parse local rubric at {rubric_path}: {e}", file=sys.stderr)
+                return 2
+        else:
+            print(
+                f"ERROR: No rubric found for job_id={job_id!r}.\n"
+                "Run generate_rubric.py first to upload a rubric to Airtable.",
+                file=sys.stderr,
+            )
             return 2
 
     rubric_json = rubric_compact_json(rubric)
@@ -532,13 +539,14 @@ def main() -> int:
             "email": email,
             "resume_file": resume_url,
             "resume_local_path": resume_local_path,
+            "cv_text": clip(resume_text, Config.MAX_RESUME_CHARS) if resume_text else "",
             "tier1_score": tier1_score,
             "tier1_status": tier1_status,
-            "ai_score": tier1_score,  # Candidate Results table uses this
-            "ai_summary": "",         # Populated by Tier 2 (generate_detailed_reports.py)
+            "ai_score": tier1_score,
+            "ai_summary": "",
             "ai_strengths": "",
             "ai_gaps": "",
-            "ai_report_html": "",     # Populated by Tier 2
+            "ai_report_html": "",
             "rubric_version": rubric_version,
             "rubric_hash": rubric_hash,
             "cache_key": cache_key,
@@ -556,6 +564,7 @@ def main() -> int:
         "created_at", "updated_at", "match_stage_name",
         "candidate_id", "full_name", "email",
         "resume_file", "resume_local_path",
+        "cv_text",
         "tier1_score", "tier1_status",
         "ai_score", "ai_summary", "ai_strengths", "ai_gaps", "ai_report_html",
         "rubric_version", "rubric_hash", "cache_key",

@@ -1183,101 +1183,77 @@ def apply_priority_from_weight(item: dict) -> None:
 
 # ── MAIN ─────────────────────────────────────────────────────────────────────
 def main():
-    # Parse arguments
-    if len(sys.argv) < 3:
-        print("Usage: python generate_rubric.py <job_id> /yaml|/json")
-        print()
-        print("Examples:")
-        print("  python generate_rubric.py 3419430 /yaml")
-        print("  python generate_rubric.py 3419430 /json")
+    if len(sys.argv) < 2:
+        print("Usage: python generate_rubric.py <job_id>")
+        print("Example: python generate_rubric.py 3419430")
         sys.exit(1)
 
     job_id = sys.argv[1].strip()
-    fmt_arg = sys.argv[2].strip().lower()
-
-    if fmt_arg not in ("/yaml", "/json"):
-        print(f"ERROR: Invalid format '{fmt_arg}'. Use /yaml or /json")
-        sys.exit(1)
-
-    fmt = fmt_arg.lstrip("/")  # "yaml" or "json"
 
     print("=" * 70)
-    print(f"  RUBRIC GENERATOR — Job {job_id} → {fmt.upper()}")
+    print(f"  RUBRIC GENERATOR — Job {job_id}")
     print("=" * 70)
     print()
 
-    # 1. Fetch JD from Manatal
+    # 1. Check Airtable first — skip generation if rubric already exists
+    from airtable_client import AirtableClient
+    at = AirtableClient()
+    print(f"Checking Airtable for existing rubric (job_id={job_id})...")
+    existing = at.get_rubric(job_id)
+    if existing:
+        print(f"✅ Rubric already exists in Airtable for job_id={job_id}. Skipping generation.")
+        _print_rubric_summary(existing)
+        return 0
+
+    print("No rubric found in Airtable. Generating now...\n")
+
+    # 2. Fetch JD from Manatal
     job_data = fetch_job_from_manatal(job_id)
 
-    # 2. Prepare JD context
+    # 3. Prepare JD context
     jd_context = prepare_jd_context(job_data)
-    print(f"\n📄 JD extracted ({len(jd_context)} chars)")
+    print(f"📄 JD extracted ({len(jd_context)} chars)")
 
-    # 3. Build prompt
-    if fmt == "yaml":
-        prompt = build_yaml_prompt(jd_context, job_id)
-    else:
-        prompt = build_json_prompt(jd_context, job_id)
+    # 4. Build prompt (always JSON for Airtable storage)
+    prompt = build_json_prompt(jd_context, job_id)
 
-    # 4. Generate via Claude with validation + retry
-    content = generate_with_retry(SYSTEM_PROMPT, prompt, fmt, max_retries=2)
+    # 5. Generate with validation + retry
+    content = generate_with_retry(SYSTEM_PROMPT, prompt, "json", max_retries=2)
 
-    # 5. Determine filename
-    ext = "yaml" if fmt == "yaml" else "json"
-    filename = f"rubric_{job_id}.{ext}"
-    filepath = OUTPUT_DIR / filename
-
-    # 6. Save file
-    with open(filepath, "w", encoding="utf-8") as f:
-        f.write(content)
-        f.write("\n")
+    # 6. Parse and upload to Airtable — no local file save
+    rubric = json.loads(content)
+    at.upsert_rubric(job_id, rubric)
 
     print()
     print("=" * 70)
-    print(f"  ✅ RUBRIC SAVED: {filepath}")
+    print(f"  ✅ RUBRIC UPLOADED TO AIRTABLE for job_id={job_id}")
     print("=" * 70)
 
     # 7. Print summary
-    if fmt == "yaml":
-        try:
-            rubric = yaml.safe_load(content)
-            mh_count = len(rubric.get("must_have", []))
-            nh_count = len(rubric.get("nice_to_have", []))
-            comp_count = len(rubric.get("compliance", []))
-            mh_w = sum(r.get("weight", 0) for r in rubric.get("must_have", []))
-            nh_w = sum(r.get("weight", 0) for r in rubric.get("nice_to_have", []))
-            nt_count = len(rubric.get("normalized_terms", {}))
-            print(f"\n📋 Summary:")
-            print(f"   Role:             {rubric.get('role_applied', 'N/A')}")
-            print(f"   Compliance items: {comp_count}")
-            print(f"   Must-have:        {mh_count} requirements (total weight: {mh_w}%)")
-            print(f"   Nice-to-have:     {nh_count} skills (total weight: {nh_w}%)")
-            print(f"   Ontology terms:   {nt_count}")
-        except Exception:
-            pass
-    else:
-        try:
-            rubric = json.loads(content)
-            reqs = rubric.get("requirements", {})
-            mh = reqs.get("must_have", [])
-
-            nh = reqs.get("nice_to_have", [])
-            comp = rubric.get("compliance_requirements", [])
-            mh_w = sum(r.get("weight", 0) for r in mh)
-            nh_w = sum(r.get("weight", 0) for r in nh)
-            ont = rubric.get("semantic_ontology", {}).get("normalized_terms", [])
-            print(f"\n📋 Summary:")
-            print(f"   Role:             {rubric.get('role', 'N/A')}")
-            print(f"   Seniority:        {rubric.get('seniority_level', 'N/A')}")
-            print(f"   Compliance items: {len(comp)}")
-            print(f"   Must-have:        {len(mh)} requirements (total weight: {mh_w}%)")
-            print(f"   Nice-to-have:     {len(nh)} skills (total weight: {nh_w}%)")
-            print(f"   Ontology terms:   {len(ont)}")
-        except Exception:
-            pass
-
+    _print_rubric_summary(rubric)
     print()
     return 0
+
+
+def _print_rubric_summary(rubric: dict) -> None:
+    """Print a brief summary of a rubric dict."""
+    try:
+        reqs = rubric.get("requirements", {})
+        mh = reqs.get("must_have", [])
+        nh = reqs.get("nice_to_have", [])
+        comp = rubric.get("compliance_requirements", [])
+        mh_w = sum(r.get("weight", 0) for r in mh)
+        nh_w = sum(r.get("weight", 0) for r in nh)
+        ont = rubric.get("semantic_ontology", {}).get("normalized_terms", [])
+        print(f"\n📋 Summary:")
+        print(f"   Role:             {rubric.get('role', 'N/A')}")
+        print(f"   Seniority:        {rubric.get('seniority_level', 'N/A')}")
+        print(f"   Compliance items: {len(comp)}")
+        print(f"   Must-have:        {len(mh)} requirements (total weight: {mh_w}%)")
+        print(f"   Nice-to-have:     {len(nh)} skills (total weight: {nh_w}%)")
+        print(f"   Ontology terms:   {len(ont)}")
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":

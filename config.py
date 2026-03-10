@@ -102,13 +102,14 @@ class Config:
         "full_name":         "full_name",
         "email":             "email",
         "resume_file":       "resume_file",
+        "cv_text":           "cv_text",
         "tier1_score":       "tier1_score",
         "ai_summary":        "ai_summary",
         "ai_strengths":      "ai_strengths",
         "ai_gaps":           "ai_gaps",
         "rubric_version":    "rubric_version",
         "rubric_hash":       "rubric_hash",
-        "cv_text":           "cv_text",
+        "cache_key":         "cache_key",
     }
 
     # Field type definitions for upload normalisation
@@ -119,9 +120,10 @@ class Config:
         "match_stage_name",
         "full_name", "email",
         "resume_file",
+        "cv_text",
         "ai_summary", "ai_strengths", "ai_gaps",
         "rubric_version", "rubric_hash",
-        "cv_text",
+        "cache_key",
     }
 
     NUMBER_FIELDS = {
