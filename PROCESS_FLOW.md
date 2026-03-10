@@ -1,4 +1,4 @@
-# Current process flow
+# Current Process Flow
 
 ## 1. When you open the Render webpage
 
@@ -6,79 +6,107 @@
 You open:  https://recruitment-pipeline-render.onrender.com
                 │
                 ▼
-         Render runs the app connected to your service
+         Render runs app.py (FastAPI)
                 │
-    ┌───────────┴───────────┐
-    │                       │
-    ▼                       ▼
- If connected repo     If a different repo
- is THIS project      is connected (e.g. another
- (with app.py below)   "Recruitment Pipeline API")
-    │                       │
-    ▼                       ▼
- GET / returns          GET / returns JSON:
- the Run Pipeline      {"service":"Recruitment Pipeline API",
- UI (HTML page with     "status":"idle", "running_jobs":[], ...}
- job IDs + Run button)  or /status returns "APP_API_KEY not configured"
-    │                       │
-    ▼                       ▼
- You see the UI.        You see JSON or an error (no UI).
+                ▼
+         GET / → returns the "Run AI Scoring" UI (HTML page)
+                │
+                ▼
+         You see a form with Job ID input + Run button
 ```
-
-**To see the UI at that URL:** the Render service must use **this repo** (the one containing this `app.py` and `PROCESS_FLOW.md`). In Render Dashboard → your service → Settings → connect this repository and redeploy.
 
 ---
 
-## 2. Pipeline flow (when you click Run or run from CLI)
-
-Once the Run Pipeline UI is loaded (or you call `POST /run`), this is what runs in the background:
+## 2. Pipeline flow (when you click Run or call POST /run)
 
 ```
-  POST /run  (job_ids e.g. "3419430")
+  POST /run/form  (job_ids, stage, optional rubric files)
         │
         ▼
   app.py starts online_pipeline.py in a background thread
         │
         ▼
   ┌─────────────────────────────────────────────────────────────────┐
-  │  online_pipeline.py  (for each job_id)                           │
+  │  online_pipeline.py  (for each job_id)                          │
   │                                                                  │
-  │  STEP 1: python8.py  (AI scoring)                                │
-  │          • Fetches candidates from Manatal API                  │
-  │          • Loads rubric YAML (rubrics/rubric_{job_id}.yaml)     │
-  │          • Scores with OpenAI GPT-4o-mini                        │
-  │          • Writes scored CSV/JSON to output/upload/              │
+  │  STEP 0: generate_rubric.py  (rubric check / generate)          │
+  │          • Fetches job description from Manatal API             │
+  │          • Checks for existing local rubric file first          │
+  │          • If missing: calls OpenAI GPT-4o to generate rubric   │
+  │          • Saves to rubrics/rubric_{job_id}.json                │
+  │          • Can also upsert into Airtable Rubric table            │
   │                                                                  │
-  │  STEP 2: upload_supabase.py                                      │
+  │  STEP 1: python8.py  (AI scoring)                               │
+  │          • Fetches candidates from Manatal API (stage filter)   │
+  │          • Loads rubric from local file → Airtable fallback      │
+  │          • Tier 1: quick score with GPT-4o-mini                 │
+  │          • Writes scored CSV/JSON to output/upload/             │
+  │                                                                  │
+  │  STEP 2: upload_airtable.py  (Airtable upsert)                  │
   │          • Reads scored CSV                                      │
-  │          • Upserts rows into Supabase candidates table           │
-  │          • Uploads CVs to Supabase Storage                       │
-  │          • Generates embeddings → candidate_chunks                │
-  │          • Reloads PostgREST schema                               │
+  │          • Upserts rows into Airtable Candidate table           │
+  │            (create new or update existing, keyed by match_id)   │
+  │          • Attaches CV via public URL (online) or direct upload  │
+  │          • Attaches rubric_text to each record                   │
   │                                                                  │
-  │  STEP 3: generate_detailed_reports.py                            │
-  │          • For candidates with score ≥ MIN_SCORE_FOR_REPORT      │
-  │          • Re-scores with detailed prompt                        │
-  │          • Generates HTML report, uploads to Storage             │
-  │          • Updates ai_report_html, embeddings                     │
+  │  STEP 3: generate_detailed_reports.py  (Tier 2 re-score)        │
+  │          • For candidates with score ≥ MIN_SCORE_FOR_REPORT     │
+  │          • Re-scores with detailed per-criterion prompt          │
+  │          • Generates detailed JSON + HTML report locally         │
+  │          • Uploads HTML as attachment → ai_report_html field     │
+  │          • Stores tier2_score + tier2_status + ai_detailed_json  │
   └─────────────────────────────────────────────────────────────────┘
         │
         ▼
-  Supabase (candidates + candidate_chunks + Storage)
+  Airtable base app285aKVVr7JYL43
         │
-        ▼
-  Supabase (view/filter candidates via your preferred client)
+        ├── Candidate table (tblJ2OkvaWI7vi0vI)
+        │      full_name, email, job_id, candidate_id
+        │      tier1_score, tier2_score, tier2_status
+        │      ai_summary, ai_strengths, ai_gaps
+        │      ai_report_html (attachment), cv_text, rubric_text
+        │
+        ├── Rubric table (tblZgr3F6DWEOorG7)
+        │      rubric_name (= job_id), rubric_json
+        │
+        └── Job table (tblCV6w4fGex9VgzK)
+               job_id, job_name, jd, client_id, rubric
 ```
 
 ---
 
-## 3. Summary
+## 3. Airtable schema overview
 
-| Step | What happens |
-|------|----------------|
-| Open Render URL | Render serves whatever app is connected to that service. This project’s app serves an HTML “Run Pipeline” UI at `/`. |
-| Click Run pipeline | Browser sends `POST /run` with job IDs → app starts `online_pipeline.py` in background → you see “Pipeline started” and can watch logs in Render. |
-| Pipeline (per job) | 1) python8: Manatal → score with OpenAI → CSV/JSON. 2) upload_supabase: CSV → Supabase + Storage + embeddings. 3) generate_detailed_reports: high scorers → HTML report → Storage + embeddings. |
-| Result | Data in Supabase; CVs and reports in Storage. |
+| Table | ID | Key fields |
+|---|---|---|
+| **Candidate** | `tblJ2OkvaWI7vi0vI` | full_name, match_id (formula), job_id, candidate_id, tier1_score, tier2_score, tier2_status, ai_summary, ai_strengths, ai_gaps, ai_report_html (attachment), cv_text, rubric_text, match_stage_name |
+| **Rubric** | `tblZgr3F6DWEOorG7` | rubric_name (primary = job_id), rubric_json |
+| **Job** | `tblCV6w4fGex9VgzK` | job_id (primary), job_name, jd, rubric, client_id, client_name |
 
-To fix “I only see JSON or error on the Render page”: connect **this repository** to your Render web service and redeploy so `/` serves the UI from this project’s `app.py`.
+`match_id` is a **formula field** in Airtable: `{job_id} & "-" & {candidate_id}`
+
+---
+
+## 4. Step-by-step summary
+
+| Step | Script | What happens |
+|---|---|---|
+| **0** | `generate_rubric.py` | Fetches JD from Manatal → GPT-4o generates structured rubric JSON → saved locally + optionally to Airtable Rubric table |
+| **1** | `python8.py` | Fetches candidates from Manatal → loads rubric → GPT-4o-mini scores each resume → writes `output/upload/manatal_job_{id}_scored.csv` |
+| **2** | `upload_airtable.py` | Reads scored CSV → upserts into Airtable Candidate table (create/update by match_id) → attaches CV and rubric text |
+| **3** | `generate_detailed_reports.py` | For candidates scoring ≥ `MIN_SCORE_FOR_REPORT`: GPT-4o detailed re-score → HTML report → uploaded as Airtable attachment → `tier2_score` / `tier2_status` updated |
+
+---
+
+## 5. Environment variables required
+
+| Variable | Used by |
+|---|---|
+| `MANATAL_API_TOKEN` | python8.py, generate_rubric.py (fetch JD + candidates) |
+| `OPENAI_API_KEY` | python8.py, generate_detailed_reports.py (scoring + reports) |
+| `AIRTABLE_TOKEN` | upload_airtable.py, generate_detailed_reports.py, app.py |
+| `AIRTABLE_BASE_ID` | All Airtable operations (default: `app285aKVVr7JYL43`) |
+| `AIRTABLE_TABLE_ID` | Candidate table (default: `tblJ2OkvaWI7vi0vI`) |
+| `AIRTABLE_RUBRIC_TABLE_ID` | Rubric table (default: `tblZgr3F6DWEOorG7`) |
+| `MIN_SCORE_FOR_REPORT` | Tier 2 cutoff (default: 75) |
+| `TARGET_STAGE_NAME` | Manatal pipeline stage to pull (default: `New Candidates`) |
