@@ -326,6 +326,7 @@ class AirtableClient:
         jd_text: str = "",
         client_id: Optional[int] = None,
         client_name: str = "",
+        word_cnt: Optional[int] = None,
     ) -> str:
         """Create or update a Job record. Returns the Airtable record ID."""
         client = AirtableClient(
@@ -346,6 +347,8 @@ class AirtableClient:
             payload["client_id"] = int(client_id)
         if client_name:
             payload["client_name"] = client_name
+        if word_cnt is not None:
+            payload["word_cnt"] = int(word_cnt)
 
         if existing_id:
             client.update_record(existing_id, payload)
@@ -381,6 +384,29 @@ class AirtableClient:
             return json.loads(raw)
         except (json.JSONDecodeError, TypeError):
             return None
+
+    def delete_rubric(self, job_id: str) -> bool:
+        """Delete the rubric record for a job from the Rubric table.
+
+        Returns True if a record was deleted, False if none existed.
+        """
+        client = AirtableClient(
+            token=self.token,
+            base_id=self.base_id,
+            table_id=Config.AIRTABLE_RUBRIC_TABLE_ID,
+        )
+        records = client.get_records_by_formula(f"{{job_id}}={job_id}")
+        if not records:
+            return False
+        for rec in records:
+            r = requests.delete(
+                client._url(f"{Config.AIRTABLE_RUBRIC_TABLE_ID}/{rec['id']}"),
+                headers=client._headers(),
+                timeout=30,
+            )
+            if not r.ok:
+                print(f"[WARN] Failed to delete rubric record {rec['id']}: {r.status_code}")
+        return True
 
     def upsert_rubric(self, job_id: str, rubric: Dict[str, Any]) -> None:
         """Upsert a rubric into the Rubric table (keyed by numeric job_id field).

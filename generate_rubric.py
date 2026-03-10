@@ -1195,10 +1195,50 @@ def main():
     print("=" * 70)
     print()
 
-    # 1. Check Airtable first — skip generation if rubric already exists
     from airtable_client import AirtableClient
     at = AirtableClient()
-    print(f"Checking Airtable for existing rubric (job_id={job_id})...")
+
+    # ── 1. Fetch JD from Manatal (needed for word-count check) ────────────
+    job_data = fetch_job_from_manatal(job_id)
+    jd_context = prepare_jd_context(job_data)
+    jd_word_count = len(jd_context.split())
+    print(f"📄 JD extracted ({len(jd_context)} chars, {jd_word_count} words)")
+
+    # ── 2. JD change detection via word count ─────────────────────────────
+    # Compare current JD word count against what is stored in the Job table.
+    # If different → JD has changed → delete stale rubric so it gets regenerated.
+    job_record_id = at.get_job_record_id(job_id)
+    if job_record_id:
+        from airtable_client import Config as _Cfg
+        job_client = AirtableClient(
+            token=at.token, base_id=at.base_id, table_id=_Cfg.AIRTABLE_JOB_TABLE_ID
+        )
+        job_records = job_client.get_records_by_formula(f"{{job_id}}={job_id}")
+        stored_word_cnt = job_records[0]["fields"].get("word_cnt") if job_records else None
+
+        if stored_word_cnt is not None and int(stored_word_cnt) != jd_word_count:
+            print(
+                f"⚠️  JD change detected for job_id={job_id}: "
+                f"stored word_cnt={stored_word_cnt}, current={jd_word_count}"
+            )
+            print("   Updating word_cnt and deleting stale rubric...")
+            job_client.update_record(job_record_id, {"word_cnt": jd_word_count})
+            deleted = at.delete_rubric(job_id)
+            if deleted:
+                print("   🗑️  Stale rubric deleted — will regenerate.")
+            else:
+                print("   No existing rubric to delete.")
+        elif stored_word_cnt is not None:
+            print(f"✅ JD unchanged (word_cnt={jd_word_count}) — rubric is up to date.")
+        else:
+            # Job record exists but word_cnt not yet set — write it now
+            job_client.update_record(job_record_id, {"word_cnt": jd_word_count})
+            print(f"📝 word_cnt initialised to {jd_word_count} for job_id={job_id}")
+    else:
+        print(f"ℹ️  No Job record found for job_id={job_id} — skipping word count check.")
+
+    # ── 3. Check Airtable for existing rubric ─────────────────────────────
+    print(f"\nChecking Airtable for existing rubric (job_id={job_id})...")
     existing = at.get_rubric(job_id)
     if existing:
         print(f"✅ Rubric already exists in Airtable for job_id={job_id}. Skipping generation.")
@@ -1207,36 +1247,26 @@ def main():
 
     print("No rubric found in Airtable. Generating now...\n")
 
-    # 2. Fetch JD from Manatal
-    job_data = fetch_job_from_manatal(job_id)
-
-    # 3. Prepare JD context
-    jd_context = prepare_jd_context(job_data)
-    print(f"📄 JD extracted ({len(jd_context)} chars)")
-
-    # 4. Build prompt (always JSON for Airtable storage)
+    # ── 4. Build prompt and generate rubric ───────────────────────────────
     prompt = build_json_prompt(jd_context, job_id)
-
-    # 5. Generate with validation + retry
     content = generate_with_retry(SYSTEM_PROMPT, prompt, "json", max_retries=2)
-
-    # 6. Parse and upload to Airtable — no local file save
     rubric = json.loads(content)
 
-    # Ensure the Job record exists before linking the rubric to it
-    jd_for_job = jd_context[:50_000]  # store full JD text in Job table
+    # ── 5. Upsert Job record (creates it if missing, updates word_cnt) ────
     org = job_data.get("organization")
     client_id   = int(org) if isinstance(org, (int, float)) else None
     client_name = job_data.get("organisation_name", "")
     at.upsert_job(
         job_id=job_id,
         job_name=job_data.get("position_name", ""),
-        jd_text=jd_for_job,
+        jd_text=jd_context[:50_000],
         client_id=client_id,
         client_name=client_name,
+        word_cnt=jd_word_count,
     )
-    print(f"✅ Job record upserted in Airtable for job_id={job_id}")
+    print(f"✅ Job record upserted in Airtable for job_id={job_id} (word_cnt={jd_word_count})")
 
+    # ── 6. Upload rubric ───────────────────────────────────────────────────
     at.upsert_rubric(job_id, rubric)
 
     print()
@@ -1244,7 +1274,6 @@ def main():
     print(f"  ✅ RUBRIC UPLOADED TO AIRTABLE for job_id={job_id}")
     print("=" * 70)
 
-    # 7. Print summary
     _print_rubric_summary(rubric)
     print()
     return 0
