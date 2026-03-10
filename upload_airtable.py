@@ -227,9 +227,23 @@ def main() -> int:
         print("Nothing to import after filtering.")
         return 0
 
-    # Fetch existing records
+    # Fetch existing records (full fields to detect cache_key changes)
     print("Fetching existing Airtable records...")
-    existing = airtable.get_all_records_by_key(UNIQUE_KEY_FIELD)
+    existing_records_full = airtable.get_records_by_formula(
+        f"{{job_id}}={job_id_from_rows}"
+    )
+    # match_id → record_id  (for upsert routing)
+    existing: Dict[str, str] = {
+        str(r["fields"].get(UNIQUE_KEY_FIELD) or "").strip(): r["id"]
+        for r in existing_records_full
+        if r["fields"].get(UNIQUE_KEY_FIELD)
+    }
+    # match_id → existing cache_key  (to detect rubric changes)
+    existing_cache_keys: Dict[str, str] = {
+        str(r["fields"].get(UNIQUE_KEY_FIELD) or "").strip(): str(r["fields"].get("cache_key") or "")
+        for r in existing_records_full
+        if r["fields"].get(UNIQUE_KEY_FIELD)
+    }
     print(f"[OK] Found {len(existing)} existing records\n")
 
     # Classify: create vs update
@@ -241,6 +255,13 @@ def main() -> int:
         fields = item["fields"]
         if key in existing:
             if UPDATE_EXISTING:
+                # If the rubric changed (new cache_key), clear the stale report
+                # so Tier 2 regenerates it for this candidate.
+                old_ck = existing_cache_keys.get(key, "")
+                new_ck = str(fields.get("cache_key") or "")
+                if old_ck and new_ck and old_ck != new_ck:
+                    fields["ai_report_html"] = []
+                    print(f"  [INFO] Rubric changed for {key} — clearing stale report")
                 to_update.append({"id": existing[key], "fields": fields})
         else:
             if CREATE_MISSING:
