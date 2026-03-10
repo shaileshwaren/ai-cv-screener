@@ -1,4 +1,0 @@
-# Optional advanced settings for online pipeline
-skip_scoring = false
-skip_upload = false
-generate_reports = true

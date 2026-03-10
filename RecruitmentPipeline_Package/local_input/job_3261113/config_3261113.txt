@@ -1,3 +1,0 @@
-job_name = Senior MS Dynamics CRM Developer
-org_id = 3943612
-org_name = Veripark

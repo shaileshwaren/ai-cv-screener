@@ -1,8 +1,0 @@
-# Optional advanced settings
-skip_scoring = false
-skip_upload = false
-generate_reports = true
-
-# Custom paths (if needed)
-# jd_file = custom_jd.txt
-# rubric = custom_rubric.yaml
