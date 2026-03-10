@@ -624,7 +624,6 @@ def main() -> int:
         w.writerows(rows)
 
     print(f"\nDone. Rows: {len(rows)}")
-    print(f"Rubric (JSON): {rubric_path}")
     print(f"JSON: {json_path}")
     print(f"CSV : {csv_path}")
     print(f"Cache: {Config.CACHE_FILE}")
