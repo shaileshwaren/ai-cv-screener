@@ -403,8 +403,25 @@ def main() -> int:
     )
     rubric_hash = sha256_text(rubric_json)[:12]
 
-    # Cache load
+    # Local cache (kept for write-back only; skip decisions now use Airtable)
     cache = load_cache(str(Config.CACHE_FILE))
+
+    # Airtable-based scored lookup: {cache_key → fields dict}
+    # Used to skip candidates already scored with the current rubric.
+    print(f"Fetching existing Airtable records for job_id={job_id}...")
+    try:
+        at_lookup = AirtableClient()
+        existing_at_records = at_lookup.get_records_by_formula(f"{{job_id}}={job_id}")
+        airtable_scored: Dict[str, Dict] = {
+            r["fields"]["cache_key"]: r["fields"]
+            for r in existing_at_records
+            if r["fields"].get("cache_key")
+               and r["fields"].get("tier1_score") is not None
+        }
+        print(f"Found {len(airtable_scored)} already-scored candidate(s) in Airtable for this job\n")
+    except Exception as e:
+        print(f"[WARN] Could not fetch Airtable records for skip check: {e} — will score all candidates\n")
+        airtable_scored = {}
 
     # --force-rescore: clear all cached scores for this job so every candidate
     # gets rescored against the new rubric, including those already in Airtable.
@@ -566,19 +583,18 @@ def main() -> int:
         # Cache key: job + candidate + rubric (no JD hash - rubric is single source of truth)
         cache_key = f"{job_id}-{candidate_id}-{rubric_hash}"
 
-        if Config.SKIP_ALREADY_SCORED and not Config.FORCE_RESCORE and cache_key in cache:
-            cached = cache[cache_key]
-            # Support both new (tier1_score) and legacy (ai_score) cache entries
-            tier1_score = int(cached.get("tier1_score", cached.get("ai_score", 0)))
+        if Config.SKIP_ALREADY_SCORED and not force_rescore and cache_key in airtable_scored:
+            at_fields = airtable_scored[cache_key]
+            tier1_score = int(at_fields.get("tier1_score") or at_fields.get("ai_score") or 0)
             score = {
                 "ai_score":     tier1_score,
                 "tier1_score":  tier1_score,
-                "ai_summary":   cached.get("ai_summary", ""),
-                "ai_strengths": cached.get("ai_strengths", ""),
-                "ai_gaps":      cached.get("ai_gaps", ""),
+                "ai_summary":   at_fields.get("ai_summary", ""),
+                "ai_strengths": at_fields.get("ai_strengths", ""),
+                "ai_gaps":      at_fields.get("ai_gaps", ""),
             }
-            resume_local_path = cached.get("resume_local_path", "")
-            print(f"Skipped (cached): {current_num}/{total_in_stage}. {full_name} (ID: {candidate_id}) -> Tier1: {tier1_score}")
+            resume_local_path = ""
+            print(f"Skipped (Airtable): {current_num}/{total_in_stage}. {full_name} (ID: {candidate_id}) -> Tier1: {tier1_score}")
         else:
             t1_result: Dict[str, Any] = {"score": 0, "ai_summary": "", "ai_strengths": "", "ai_gaps": ""}
 

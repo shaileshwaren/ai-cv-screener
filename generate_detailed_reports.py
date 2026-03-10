@@ -74,6 +74,10 @@ def update_airtable_report(
         record_id = records[0]["id"]
         report_score = int(detailed_json.get("overall_score") or detailed_json.get("ai_score") or 0)
 
+        # Clear any existing report attachment before uploading the new one
+        # so only one copy is ever stored in Airtable.
+        at.update_record(record_id, {"ai_report_html": []})
+
         # Upload HTML as attachment to ai_report_html field
         at.upload_text_as_attachment(
             record_id=record_id,
