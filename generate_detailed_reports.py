@@ -109,18 +109,20 @@ def update_airtable_report(
 def load_rubric_json(job_id: str) -> dict:
     """Load rubric JSON for a job.
 
-    Tries local rubric file first (primary), then falls back to Airtable Rubric table.
+    Tries Airtable first (primary), then falls back to local rubric file.
     """
-    rubric_path = Config.get_rubric_path(job_id)
-    if rubric_path.exists():
-        return json.loads(rubric_path.read_text(encoding="utf-8"))
-
-    # Fallback: Airtable Rubric table
     at = AirtableClient()
     rubric = at.get_rubric(job_id)
-    if not rubric:
-        raise LookupError(f"No rubric found for job_id={job_id!r} (checked local file and Airtable)")
-    return rubric
+    if rubric:
+        return rubric
+
+    # Fallback: local rubric file
+    rubric_path = Config.get_rubric_path(job_id)
+    if rubric_path.exists():
+        print(f"  [fallback] Loaded rubric from local file: {rubric_path}")
+        return json.loads(rubric_path.read_text(encoding="utf-8"))
+
+    raise LookupError(f"No rubric found for job_id={job_id!r} (checked Airtable and local file)")
 
 
 def parse_rubric_structure(rubric: dict) -> Dict[str, Any]:
