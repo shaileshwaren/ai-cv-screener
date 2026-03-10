@@ -131,10 +131,12 @@ def parse_rubric_structure(rubric: dict) -> Dict[str, Any]:
     Supports both schemas:
     - New JSON schema: compliance_requirements (list of strings),
       requirements.must_have (list with id/evidence_signals/negative_signals),
-      semantic_ontology.normalized_terms (list of strings),
-      scoring.decision_thresholds.pass_threshold
+      semantic_ontology.normalized_terms (list of strings)
     - Legacy schema: compliance (list of dicts), must_have/nice_to_have (top-level),
-      normalized_terms (dict of objects), scoring_rules.pass_threshold
+      normalized_terms (dict of objects)
+
+    Pass threshold is always sourced from Config.PASS_THRESHOLD (user-configured),
+    never from the rubric.
     """
     compliance: List[dict] = []
     must_have: List[dict] = []
@@ -204,26 +206,13 @@ def parse_rubric_structure(rubric: dict) -> Dict[str, Any]:
             if isinstance(details, dict):
                 semantic_terms.extend(a for a in details.get("aliases", [])[:3] if a)
 
-    # ===== PASS THRESHOLD =====
-    pass_threshold = Config.PASS_THRESHOLD
-    # New schema: scoring.decision_thresholds.pass_threshold
-    scoring = rubric.get("scoring", {})
-    if isinstance(scoring, dict):
-        thresholds = scoring.get("decision_thresholds", {})
-        if isinstance(thresholds, dict) and "pass_threshold" in thresholds:
-            pass_threshold = int(thresholds["pass_threshold"])
-    # Legacy schema: scoring_rules.pass_threshold
-    if pass_threshold == Config.PASS_THRESHOLD:
-        sr = rubric.get("scoring_rules", {})
-        if isinstance(sr, dict):
-            pass_threshold = sr.get("pass_threshold", pass_threshold)
-
+    # Pass threshold is user-input derived (Config.PASS_THRESHOLD); never read from rubric.
     return {
         "compliance": compliance,
         "must_have": must_have,
         "nice_to_have": nice_to_have,
         "semantic_terms": semantic_terms,
-        "pass_threshold": pass_threshold,
+        "pass_threshold": Config.PASS_THRESHOLD,
     }
 
 
