@@ -593,6 +593,9 @@ def main() -> int:
                 "ai_strengths": at_fields.get("ai_strengths", ""),
                 "ai_gaps":      at_fields.get("ai_gaps", ""),
             }
+            # Carry stored cv_text through so the CSV has usable text for Tier 2 reports
+            cv_stored = at_fields.get("cv_text", "")
+            resume_text = cv_stored if cv_stored and "no resume attached" not in cv_stored.lower() else ""
             resume_local_path = ""
             print(f"Skipped (Airtable): {current_num}/{total_in_stage}. {full_name} (ID: {candidate_id}) -> Tier1: {tier1_score}")
         else:

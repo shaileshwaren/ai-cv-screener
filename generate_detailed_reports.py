@@ -35,12 +35,44 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import requests
 from openai import OpenAI
 
 # Import from consolidated modules
 from config import Config
 from airtable_client import AirtableClient
 from utils import extract_resume_text, clip
+
+
+def _download_resume(url: str, candidate_id: str) -> str:
+    """Download a resume from a URL, extract its text, and return it.
+
+    Uses the Manatal auth header for authenticated URLs. Returns empty
+    string on any error.
+    """
+    try:
+        headers = {"Authorization": f"Token {Config.MANATAL_API_TOKEN}"}
+        ext = Path(url.split("?")[0]).suffix.lower() or ".pdf"
+        out_path = Config.OUTPUT_DIR / "resumes" / f"{candidate_id}_tier2{ext}"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+
+        resp = requests.get(url, headers=headers, timeout=120, stream=True)
+        if not resp.ok:
+            print(f"  [WARN] Resume download failed ({resp.status_code}): {url[:80]}")
+            return ""
+
+        with out_path.open("wb") as fh:
+            for chunk in resp.iter_content(chunk_size=65536):
+                if chunk:
+                    fh.write(chunk)
+
+        text = extract_resume_text(out_path) or ""
+        if text:
+            print(f"  Downloaded & extracted resume from URL ({len(text)} chars)")
+        return text
+    except Exception as e:
+        print(f"  [WARN] Resume download error: {e}")
+        return ""
 
 
 # =========================
@@ -1067,16 +1099,55 @@ def main() -> int:
         print(f"Processing: {full_name} (Score: {ai_score}, ID: {candidate_id})")
         
         try:
+            resume_text = ""
+
+            # 1. Try local resume file first
             resume_path = get_resume_path(candidate)
-            if not resume_path:
-                print(f"  ⚠ Resume not found, skipping")
-                continue
-            
-            print(f"  📄 Resume: {resume_path}")
-            
-            resume_text = extract_resume_text(resume_path)
+            if resume_path:
+                print(f"  Resume: {resume_path}")
+                resume_text = extract_resume_text(resume_path) or ""
+
+            # 2. Fall back to cv_text already stored in the CSV row
             if not resume_text:
-                print(f"  ⚠ Could not extract text, skipping")
+                cv_text_csv = (candidate.get("cv_text") or "").strip()
+                no_resume_marker = "no resume attached"
+                if cv_text_csv and no_resume_marker not in cv_text_csv.lower():
+                    resume_text = cv_text_csv
+                    print(f"  Using cv_text from CSV (no local resume file)")
+
+            # 3. Download fresh from resume_file URL (CSV or Airtable record)
+            if not resume_text:
+                resume_url = (candidate.get("resume_file") or "").strip()
+                if not resume_url:
+                    # Try to get URL from Airtable record
+                    try:
+                        at_fallback = AirtableClient()
+                        formula = f"AND({{job_id}}={job_id}, {{candidate_id}}={candidate_id})"
+                        recs = at_fallback.get_records_by_formula(formula)
+                        if recs:
+                            resume_url = (recs[0]["fields"].get("resume_file") or "").strip()
+                    except Exception as _e:
+                        print(f"  [WARN] Airtable URL lookup failed: {_e}")
+                if resume_url:
+                    print(f"  Downloading resume from URL...")
+                    resume_text = _download_resume(resume_url, str(candidate_id))
+
+            # 4. Last resort: cv_text directly from Airtable record
+            if not resume_text:
+                try:
+                    at_fallback = AirtableClient()
+                    formula = f"AND({{job_id}}={job_id}, {{candidate_id}}={candidate_id})"
+                    recs = at_fallback.get_records_by_formula(formula)
+                    if recs:
+                        cv_airtable = (recs[0]["fields"].get("cv_text") or "").strip()
+                        if cv_airtable and no_resume_marker not in cv_airtable.lower():
+                            resume_text = cv_airtable
+                            print(f"  Using cv_text from Airtable (fallback)")
+                except Exception as _e:
+                    print(f"  [WARN] Airtable cv_text fallback failed: {_e}")
+
+            if not resume_text:
+                print(f"  No resume text available, skipping")
                 continue
             
             detailed_json = generate_detailed_json_with_ai(
