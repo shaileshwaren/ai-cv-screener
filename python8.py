@@ -545,6 +545,18 @@ def main() -> int:
                 except Exception as e:
                     print(f"  Resume download/parse error: {e}")
 
+            # No resume available — fill all CV-dependent fields with a clear notice
+            no_resume = not resume_text.strip()
+            if no_resume:
+                print(f"  [WARN] No resume found for {full_name} (ID: {candidate_id}) — CV-dependent fields set to notice")
+                t1_result = {
+                    "score":        0,
+                    "ai_summary":   "No resume attached. CV-based scoring could not be completed.",
+                    "ai_strengths": "No resume attached.",
+                    "ai_gaps":      "No resume attached — unable to assess gaps.",
+                }
+                resume_text = "No resume attached."
+
             tier1_score = int(t1_result.get("score", 0))
             score = {
                 "ai_score":     tier1_score,
@@ -568,7 +580,8 @@ def main() -> int:
                 "resume_local_path": resume_local_path,
             }
             save_cache(str(Config.CACHE_FILE), cache)
-            print(f"Scored: {current_num}/{total_in_stage}. {full_name} (ID: {candidate_id}) -> Tier1: {tier1_score}")
+            no_resume_flag = "  [no resume]" if no_resume else ""
+            print(f"Scored: {current_num}/{total_in_stage}. {full_name} (ID: {candidate_id}) -> Tier1: {tier1_score}{no_resume_flag}")
 
         tier1_score = int(score.get("tier1_score", score.get("ai_score", 0)))
         tier1_status = "PASS" if tier1_score >= Config.MIN_SCORE_FOR_REPORT else "FAIL"
@@ -587,7 +600,7 @@ def main() -> int:
             "email": email,
             "resume_file": resume_url,
             "resume_local_path": resume_local_path,
-            "cv_text":      clip(resume_text, Config.MAX_RESUME_CHARS) if resume_text else "",
+            "cv_text":      clip(resume_text, Config.MAX_RESUME_CHARS) if resume_text else "No resume attached.",
             "tier1_score":  tier1_score,
             "tier1_status": tier1_status,
             "ai_score":     tier1_score,
