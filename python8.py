@@ -247,41 +247,88 @@ def download_file(url: str, out_path: Path) -> Path:
 
 
 # =========================
-# LLM scoring – Tier 1 (fast bare integer)
+# LLM scoring – Tier 1
 # =========================
-def llm_score_tier1(oa: OpenAI, rubric_json: str, resume_text: str) -> int:
-    """Tier 1 fast screening: returns a bare 0-100 integer score.
+def llm_score_tier1(oa: OpenAI, rubric_json: str, resume_text: str) -> Dict[str, Any]:
+    """Tier 1 screening: returns score + brief summary, strengths, gaps.
 
-    Uses a minimal prompt with max_tokens=10 to minimise cost. The integer
-    is stored as ai_score in the CSV for upload to Supabase (Candidate Results
-    table). Detailed re-scoring happens later in generate_detailed_reports.py
-    for candidates whose tier1_score >= MIN_SCORE_FOR_REPORT.
+    Scoring rules come entirely from the rubric. The response is a compact
+    JSON so it stays fast and cheap while providing enough context to populate
+    the Airtable Candidate record immediately at Step 2.
+    Detailed per-criterion re-scoring happens at Step 3 for high scorers.
     """
     prompt = (
-        "Score this resume against the rubric. "
-        "Return ONLY a single integer 0-100. No explanation, no other text.\n\n"
+        "Score this resume strictly against the rubric below.\n"
+        "Return ONLY this JSON object — no markdown, no extra text:\n"
+        "{\n"
+        '  "score": <integer 0-100>,\n'
+        '  "summary": "<1-2 sentences: overall fit for the role>",\n'
+        '  "strengths": "<comma-separated list, max 3 key strengths>",\n'
+        '  "gaps": "<comma-separated list, max 3 key gaps>"\n'
+        "}\n\n"
         f"RUBRIC:\n{rubric_json[:8000]}\n\n"
         f"RESUME:\n{clip(resume_text, Config.MAX_RESUME_CHARS)}"
     )
+
+    _empty: Dict[str, Any] = {"score": 0, "ai_summary": "", "ai_strengths": "", "ai_gaps": ""}
 
     try:
         r = oa.chat.completions.create(
             model=Config.OPENAI_MODEL,
             messages=[
-                {"role": "system", "content": "Return ONLY a single integer 0-100. Nothing else."},
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a technical recruiter. "
+                        "Respond ONLY with valid JSON matching the exact schema requested. "
+                        "No markdown, no code fences, no extra keys."
+                    ),
+                },
                 {"role": "user", "content": prompt},
             ],
             temperature=0.1,
-            max_tokens=10,
+            max_tokens=200,
         )
         text = (r.choices[0].message.content or "").strip()
-        m = re.search(r"\d+", text)
-        if m:
-            return max(0, min(100, int(m.group())))
-        return 0
+
+        # Strip markdown code fences if present
+        if text.startswith("```"):
+            lines = text.split("\n")
+            text = "\n".join(lines[1:-1]) if len(lines) > 2 else text
+            if text.startswith("json"):
+                text = text[4:].strip()
+
+        data = json.loads(text)
+        score = max(0, min(100, int(data.get("score", 0))))
+        return {
+            "score": score,
+            "ai_summary":   str(data.get("summary", "")).strip(),
+            "ai_strengths": str(data.get("strengths", "")).strip(),
+            "ai_gaps":      str(data.get("gaps", "")).strip(),
+        }
     except Exception as e:
         print(f"  Tier 1 scoring error: {e}")
-        return 0
+        # Fall back to integer-only prompt so we still get a score
+        try:
+            r2 = oa.chat.completions.create(
+                model=Config.OPENAI_MODEL,
+                messages=[
+                    {"role": "system", "content": "Return ONLY a single integer 0-100. Nothing else."},
+                    {"role": "user", "content": (
+                        "Score this resume against the rubric. Return ONLY an integer 0-100.\n\n"
+                        f"RUBRIC:\n{rubric_json[:8000]}\n\n"
+                        f"RESUME:\n{clip(resume_text, Config.MAX_RESUME_CHARS)}"
+                    )},
+                ],
+                temperature=0.1,
+                max_tokens=10,
+            )
+            text2 = (r2.choices[0].message.content or "").strip()
+            m = re.search(r"\d+", text2)
+            fallback_score = max(0, min(100, int(m.group()))) if m else 0
+            return {**_empty, "score": fallback_score}
+        except Exception:
+            return _empty
 
 
 # =========================
@@ -461,21 +508,20 @@ def main() -> int:
             # Support both new (tier1_score) and legacy (ai_score) cache entries
             tier1_score = int(cached.get("tier1_score", cached.get("ai_score", 0)))
             score = {
-                "ai_score": tier1_score,
-                "tier1_score": tier1_score,
-                "ai_summary": "",
-                "ai_strengths": "",
-                "ai_gaps": "",
+                "ai_score":     tier1_score,
+                "tier1_score":  tier1_score,
+                "ai_summary":   cached.get("ai_summary", ""),
+                "ai_strengths": cached.get("ai_strengths", ""),
+                "ai_gaps":      cached.get("ai_gaps", ""),
             }
             resume_local_path = cached.get("resume_local_path", "")
             print(f"Skipped (cached): {current_num}/{total_in_stage}. {full_name} (ID: {candidate_id}) -> Tier1: {tier1_score}")
         else:
-            tier1_score = 0
-            score = {"ai_score": 0, "tier1_score": 0, "ai_summary": "", "ai_strengths": "", "ai_gaps": ""}
+            t1_result: Dict[str, Any] = {"score": 0, "ai_summary": "", "ai_strengths": "", "ai_gaps": ""}
 
-            def _run_tier1(text: str) -> int:
+            def _run_tier1(text: str) -> Dict[str, Any]:
                 if not text.strip():
-                    return 0
+                    return {"score": 0, "ai_summary": "", "ai_strengths": "", "ai_gaps": ""}
                 return llm_score_tier1(oa, rubric_json, text)
 
             if resume_local_path:
@@ -484,10 +530,9 @@ def main() -> int:
                     if not p.is_absolute():
                         p = (Path.cwd() / p).resolve()
                     resume_text = extract_resume_text(p)
-                    tier1_score = _run_tier1(resume_text)
+                    t1_result = _run_tier1(resume_text)
                 except Exception as e:
                     print(f"  Resume parse error: {e}")
-                    tier1_score = 0
 
             elif resume_url and Config.DOWNLOAD_RESUMES:
                 ext = Path(resume_url.split("?")[0]).suffix or ".pdf"
@@ -496,27 +541,30 @@ def main() -> int:
                     download_file(resume_url, out)
                     resume_local_path = str(out)
                     resume_text = extract_resume_text(out)
-                    tier1_score = _run_tier1(resume_text)
+                    t1_result = _run_tier1(resume_text)
                 except Exception as e:
                     print(f"  Resume download/parse error: {e}")
-                    tier1_score = 0
 
+            tier1_score = int(t1_result.get("score", 0))
             score = {
-                "ai_score": tier1_score,
-                "tier1_score": tier1_score,
-                "ai_summary": "",
-                "ai_strengths": "",
-                "ai_gaps": "",
+                "ai_score":     tier1_score,
+                "tier1_score":  tier1_score,
+                "ai_summary":   t1_result.get("ai_summary", ""),
+                "ai_strengths": t1_result.get("ai_strengths", ""),
+                "ai_gaps":      t1_result.get("ai_gaps", ""),
             }
 
-            # Save to cache
+            # Save to cache (include summary fields so re-runs don't re-score)
             cache[cache_key] = {
-                "job_id": job_id,
-                "candidate_id": candidate_id,
-                "rubric_version": rubric_version,
-                "rubric_hash": rubric_hash,
-                "tier1_score": tier1_score,
-                "ai_score": tier1_score,
+                "job_id":           job_id,
+                "candidate_id":     candidate_id,
+                "rubric_version":   rubric_version,
+                "rubric_hash":      rubric_hash,
+                "tier1_score":      tier1_score,
+                "ai_score":         tier1_score,
+                "ai_summary":       score["ai_summary"],
+                "ai_strengths":     score["ai_strengths"],
+                "ai_gaps":          score["ai_gaps"],
                 "resume_local_path": resume_local_path,
             }
             save_cache(str(Config.CACHE_FILE), cache)
@@ -539,13 +587,13 @@ def main() -> int:
             "email": email,
             "resume_file": resume_url,
             "resume_local_path": resume_local_path,
-            "cv_text": clip(resume_text, Config.MAX_RESUME_CHARS) if resume_text else "",
-            "tier1_score": tier1_score,
+            "cv_text":      clip(resume_text, Config.MAX_RESUME_CHARS) if resume_text else "",
+            "tier1_score":  tier1_score,
             "tier1_status": tier1_status,
-            "ai_score": tier1_score,
-            "ai_summary": "",
-            "ai_strengths": "",
-            "ai_gaps": "",
+            "ai_score":     tier1_score,
+            "ai_summary":   score.get("ai_summary", ""),
+            "ai_strengths": score.get("ai_strengths", ""),
+            "ai_gaps":      score.get("ai_gaps", ""),
             "ai_report_html": "",
             "rubric_version": rubric_version,
             "rubric_hash": rubric_hash,
