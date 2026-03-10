@@ -184,13 +184,9 @@ def main() -> int:
         return 0
     print(f"[OK] Loaded {len(rows)} rows\n")
 
-    # Load rubric text for this job (same for all rows in this batch)
+    # rubric_text is now a lookup field in Airtable (auto-populated via Job link)
+    # — no longer written by the pipeline
     job_id_from_rows = str(rows[0].get("job_id") or JOB_ID).strip()
-    rubric_text = ""
-    rubric_path = Config.get_rubric_path(job_id_from_rows)
-    if rubric_path.exists():
-        rubric_text = rubric_path.read_text(encoding="utf-8", errors="replace")[:100_000]
-        print(f"[OK] Loaded rubric text ({len(rubric_text)} chars) for job {job_id_from_rows}\n")
 
     # Resolve Job record ID for link field (once for all candidates)
     job_record_id: Optional[str] = airtable.get_job_record_id(job_id_from_rows)
@@ -213,8 +209,6 @@ def main() -> int:
             continue
 
         fields = map_row_to_airtable_fields(row)
-        if rubric_text:
-            fields["rubric_text"] = rubric_text
         if job_record_id:
             fields["job"] = [job_record_id]
 
