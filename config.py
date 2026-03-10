@@ -66,7 +66,8 @@ class Config:
     # =========================
     # Pipeline Settings
     # =========================
-    TARGET_STAGE_NAME = os.getenv("TARGET_STAGE_NAME", "New Candidates")
+    TARGET_STAGE_NAME  = os.getenv("TARGET_STAGE_NAME",  "New Candidates")
+    TARGET_STAGE_AFTER = os.getenv("TARGET_STAGE_AFTER", "AI Screened")
 
     DOWNLOAD_RESUMES = True
     SKIP_ALREADY_SCORED = True

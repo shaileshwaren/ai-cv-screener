@@ -234,6 +234,74 @@ def extract_resume_url_from_candidate(candidate: Dict[str, Any]) -> Optional[str
 # =========================
 # Resume download
 # =========================
+def move_candidates_to_stage(
+    manatal_match_ids: List[int],
+    target_stage_name: str,
+    job_id: str,
+) -> None:
+    """Move Manatal candidate matches to a target pipeline stage by name.
+
+    Fetches the job's pipeline to resolve the target stage ID, then PATCHes
+    each match. Skips candidates already in the target stage or beyond it.
+    """
+    if not manatal_match_ids:
+        return
+
+    # Resolve target stage ID from the job's pipeline
+    try:
+        job_data = api_get(f"/jobs/{job_id}/")
+        pipeline_id = job_data.get("pipeline") or job_data.get("job_pipeline", {}).get("id")
+        if not pipeline_id:
+            # Try from a match object
+            sample = api_get(f"/jobs/{job_id}/matches/?page_size=1")
+            results = sample.get("results", []) if sample else []
+            if results:
+                pipeline_id = results[0].get("job_pipeline_stage", {}).get("job_pipeline", {}).get("id")
+
+        if not pipeline_id:
+            print(f"  [WARN] Could not resolve pipeline ID for job {job_id} — skipping stage move")
+            return
+
+        pipeline = api_get(f"/job-pipelines/{pipeline_id}/")
+        stages = pipeline.get("job_pipeline_stages", [])
+        target = next((s for s in stages if s["name"].lower() == target_stage_name.lower()), None)
+        if not target:
+            print(f"  [WARN] Stage '{target_stage_name}' not found in pipeline — skipping stage move")
+            return
+
+        target_id = target["id"]
+        target_rank = target.get("rank", 99)
+
+    except Exception as e:
+        print(f"  [WARN] Pipeline lookup failed: {e} — skipping stage move")
+        return
+
+    moved = 0
+    skipped = 0
+    errors = 0
+
+    for mid in manatal_match_ids:
+        try:
+            r = requests.patch(
+                f"{BASE_URL.rstrip('/')}/matches/{mid}/",
+                headers=manatal_headers(),
+                json={"job_pipeline_stage": {"id": target_id}},
+                timeout=30,
+            )
+            if r.ok:
+                moved += 1
+            else:
+                print(f"  [WARN] Failed to move match {mid}: {r.status_code} {r.text[:120]}")
+                errors += 1
+        except Exception as e:
+            print(f"  [WARN] Error moving match {mid}: {e}")
+            errors += 1
+
+    print(f"  Moved {moved} candidate(s) to '{target_stage_name}'"
+          + (f", {skipped} already there" if skipped else "")
+          + (f", {errors} error(s)" if errors else ""))
+
+
 def download_file(url: str, out_path: Path) -> Path:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     resp = requests.get(url, headers=manatal_headers(), timeout=120, stream=True)
@@ -541,6 +609,7 @@ def main() -> int:
     base = safe_filename(f"manatal_job_{job_id}_{Config.TARGET_STAGE_NAME}")
     rows: List[Dict[str, Any]] = []
     current_num = 0
+    manatal_match_ids: List[int] = []   # real Manatal match IDs for stage-move
 
     for match in matches:
         stage_name = extract_stage_name(match)
@@ -550,8 +619,13 @@ def main() -> int:
         candidate_id = extract_candidate_id(match)
         if not candidate_id:
             continue
-            
+
         match_id = f"{job_id}-{candidate_id}"
+
+        # Collect real Manatal match ID (int) for stage-move after scoring
+        real_match_id = match.get("id")
+        if real_match_id and not match.get("_cv_text_override"):
+            manatal_match_ids.append(int(real_match_id))
 
         current_num += 1
 
@@ -727,6 +801,12 @@ def main() -> int:
     print(f"JSON: {json_path}")
     print(f"CSV : {csv_path}")
     print(f"Cache: {Config.CACHE_FILE}")
+
+    # Move processed candidates to the next pipeline stage in Manatal
+    if manatal_match_ids and Config.TARGET_STAGE_AFTER:
+        print(f"\nMoving {len(manatal_match_ids)} candidate(s) to '{Config.TARGET_STAGE_AFTER}' in Manatal...")
+        move_candidates_to_stage(manatal_match_ids, Config.TARGET_STAGE_AFTER, str(job_id))
+
     return 0
 
 
