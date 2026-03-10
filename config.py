@@ -86,8 +86,8 @@ class Config:
     # =========================
     # Scoring Settings
     # =========================
-    PASS_THRESHOLD = int(os.getenv("PASS_THRESHOLD", "75"))
-    MIN_SCORE_FOR_REPORT = PASS_THRESHOLD  # single source of truth
+    PASS_THRESHOLD = int(os.getenv("PASS_THRESHOLD", "60"))
+    MIN_SCORE_FOR_REPORT = PASS_THRESHOLD  # alias — always the same value
 
     # =========================
     # Field Mappings (CSV → Airtable)
