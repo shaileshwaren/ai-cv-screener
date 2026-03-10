@@ -40,12 +40,16 @@ CONFIG_FILE = HERE / "online_config.txt"
 ADVANCED_CONFIG_FILE = HERE / "online_advanced_config.txt"
 
 
-def run_step(step_num: int, total_steps: int, description: str, cmd: list[str]) -> None:
+def run_step(step_num: int, total_steps: int, description: str, cmd: list[str]) -> int:
+    """Run a pipeline step. Returns the process exit code."""
     print(f"\n{'='*70}")
     print(f"[STEP {step_num}/{total_steps}] {description}")
     print(f"{'='*70}")
     print(f"Command: {' '.join(cmd)}\n")
-    subprocess.run(cmd, check=True)
+    result = subprocess.run(cmd, check=False)
+    if result.returncode not in (0, 2):
+        raise subprocess.CalledProcessError(result.returncode, cmd)
+    return result.returncode
 
 
 def warn_missing_env() -> None:
@@ -133,22 +137,31 @@ def process_single_job(job_id: str, config: dict, global_args: argparse.Namespac
 
     try:
         # ── STEP 0: Rubric ───────────────────────────────────────────────
+        rubric_regenerated = False
         if not skip_rubric:
-            run_step(
+            rubric_exit = run_step(
                 step_num, total_steps,
                 f"Rubric check/generate for job {job_id}",
                 [sys.executable, str(GENERATE_RUBRIC), str(job_id)],
             )
+            # Exit code 2 = rubric was (re)generated → force rescore of all candidates
+            rubric_regenerated = (rubric_exit == 2)
+            if rubric_regenerated:
+                print(f"\n[INFO] Rubric was regenerated for job {job_id} — all candidates will be rescored.")
             step_num += 1
         else:
             print("\nSkipped: Rubric step")
 
         # ── STEP 1: AI Scoring ───────────────────────────────────────────
         if not skip_scoring:
+            scoring_cmd = [sys.executable, str(PYTHON8), str(job_id)]
+            if rubric_regenerated:
+                scoring_cmd.append("--force-rescore")
             run_step(
                 step_num, total_steps,
-                "AI Scoring (fetch from Manatal + score against rubric)",
-                [sys.executable, str(PYTHON8), str(job_id)],
+                "AI Scoring (fetch from Manatal + score against rubric)"
+                + (" [FORCE RESCORE]" if rubric_regenerated else ""),
+                scoring_cmd,
             )
             step_num += 1
         else:

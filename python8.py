@@ -340,10 +340,13 @@ def main() -> int:
     )
     parser.add_argument("job_id", help="Manatal JOB_ID (must match rubrics/rubric_<JOB_ID>.json)")
     parser.add_argument("--offline", default="", help="Path to offline input JSON (skips Manatal API)")
+    parser.add_argument("--force-rescore", action="store_true",
+                        help="Clear cached scores for this job and rescore all existing Airtable candidates")
     args = parser.parse_args()
 
     job_id = str(args.job_id).strip()
     offline_path = (args.offline or "").strip()
+    force_rescore = args.force_rescore
 
     if not job_id.isdigit():
         print(f"ERROR: JOB_ID must be numeric, got: {job_id}", file=sys.stderr)
@@ -403,6 +406,34 @@ def main() -> int:
     # Cache load
     cache = load_cache(str(Config.CACHE_FILE))
 
+    # --force-rescore: clear all cached scores for this job so every candidate
+    # gets rescored against the new rubric, including those already in Airtable.
+    if force_rescore:
+        evicted = [k for k in list(cache.keys()) if k.startswith(f"{job_id}-")]
+        for k in evicted:
+            del cache[k]
+        if evicted:
+            print(f"[force-rescore] Cleared {len(evicted)} cached score(s) for job {job_id}")
+            save_cache(str(Config.CACHE_FILE), cache)
+
+        # Fetch existing candidates from Airtable and inject them for rescoring
+        # using their stored cv_text (so already-processed candidates are covered).
+        print(f"[force-rescore] Fetching existing Airtable candidates for job_id={job_id}...")
+        try:
+            at_rescore = AirtableClient()
+            existing_records = at_rescore.get_records_by_formula(f"{{job_id}}={job_id}")
+            airtable_candidate_ids = {
+                str(r["fields"].get("candidate_id", ""))
+                for r in existing_records
+                if r["fields"].get("cv_text") and r["fields"].get("cv_text") not in ("", "No resume attached.")
+            }
+            print(f"[force-rescore] Found {len(airtable_candidate_ids)} candidate(s) with cv_text in Airtable")
+        except Exception as e:
+            print(f"[force-rescore][WARN] Could not fetch Airtable candidates: {e}")
+            airtable_candidate_ids = set()
+    else:
+        airtable_candidate_ids = set()
+
     oa = OpenAI(api_key=Config.OPENAI_API_KEY)
 
     # Job info + JD + matches (online or offline)
@@ -453,12 +484,41 @@ def main() -> int:
         _, job_name, org_id, org_name, _ = get_job_and_org(job_id)  # JD not needed
         matches = fetch_all_paginated(f"/jobs/{job_id}/matches/", params={"page_size": Config.MANATAL_PAGE_SIZE})
 
+    # force-rescore: inject Airtable candidates not already in the Manatal matches list
+    # so previously processed candidates (possibly in other stages) also get rescored.
+    if force_rescore and existing_records and airtable_candidate_ids:
+        manatal_candidate_ids = {str(extract_candidate_id(m)) for m in matches if extract_candidate_id(m)}
+        to_inject = [
+            r for r in existing_records
+            if str(r["fields"].get("candidate_id", "")) in airtable_candidate_ids
+            and str(r["fields"].get("candidate_id", "")) not in manatal_candidate_ids
+        ]
+        if to_inject:
+            print(f"[force-rescore] Injecting {len(to_inject)} additional candidate(s) from Airtable for rescoring")
+        for rec in to_inject:
+            f = rec["fields"]
+            cid = f.get("candidate_id")
+            cv_stored = f.get("cv_text", "")
+            # Build a synthetic match entry so the main loop can process it
+            matches.append({
+                "created_at":        f.get("created_at"),
+                "updated_at":        f.get("updated_at"),
+                "job_pipeline_stage": {"name": Config.TARGET_STAGE_NAME},
+                "_cv_text_override": cv_stored,   # used below instead of downloading resume
+                "candidate": {
+                    "id":           int(cid),
+                    "full_name":    f.get("full_name", ""),
+                    "email":        f.get("email", ""),
+                    "resume_file":  f.get("resume_file", ""),
+                },
+            })
+
     # Calculate total candidates in target stage
     total_in_stage = sum(
         1 for m in matches 
         if extract_stage_name(m) == Config.TARGET_STAGE_NAME and extract_candidate_id(m) is not None
     )
-    
+
     print(f"\nFound {total_in_stage} candidates in '{Config.TARGET_STAGE_NAME}' stage to process\n")
 
     base = safe_filename(f"manatal_job_{job_id}_{Config.TARGET_STAGE_NAME}")
@@ -490,6 +550,9 @@ def main() -> int:
 
         full_name = candidate.get("full_name")
         email = candidate.get("email")
+
+        # force-rescore injected candidates carry their cv_text directly
+        cv_text_override = match.get("_cv_text_override", "")
 
         # Offline mode uses a local resume path; online mode uses a resume URL.
         resume_local_path = str(candidate.get("resume_local_path") or "").strip()
@@ -524,7 +587,12 @@ def main() -> int:
                     return {"score": 0, "ai_summary": "", "ai_strengths": "", "ai_gaps": ""}
                 return llm_score_tier1(oa, rubric_json, text)
 
-            if resume_local_path:
+            if cv_text_override:
+                # Use stored cv_text from Airtable (force-rescore path)
+                resume_text = cv_text_override
+                t1_result = _run_tier1(resume_text)
+
+            elif resume_local_path:
                 try:
                     p = Path(resume_local_path).expanduser()
                     if not p.is_absolute():

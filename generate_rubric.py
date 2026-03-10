@@ -1243,7 +1243,7 @@ def main():
     if existing:
         print(f"✅ Rubric already exists in Airtable for job_id={job_id}. Skipping generation.")
         _print_rubric_summary(existing)
-        return 0
+        return 0  # exit 0 = rubric unchanged, no rescore needed
 
     print("No rubric found in Airtable. Generating now...\n")
 
@@ -1276,7 +1276,7 @@ def main():
 
     _print_rubric_summary(rubric)
     print()
-    return 0
+    return 2  # exit 2 = rubric was (re)generated → trigger rescore of existing candidates
 
 
 def _print_rubric_summary(rubric: dict) -> None:
