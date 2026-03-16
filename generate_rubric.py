@@ -1229,7 +1229,7 @@ def main():
             else:
                 print("   No existing rubric to delete.")
         elif stored_word_cnt is not None:
-            print(f"✅ JD unchanged (word_cnt={jd_word_count}) — rubric is up to date.")
+            print(f"✅ JD unchanged (word_cnt={jd_word_count}).")
         else:
             # Job record exists but word_cnt not yet set — write it now
             job_client.update_record(job_record_id, {"word_cnt": jd_word_count})
