@@ -1196,7 +1196,11 @@ def main():
     print()
 
     from airtable_client import AirtableClient
-    at = AirtableClient()
+    try:
+        at = AirtableClient()
+    except ValueError as e:
+        print(f"ERROR: Airtable credentials not configured: {e}", file=sys.stderr)
+        sys.exit(1)
 
     # ── 1. Fetch JD from Manatal (needed for word-count check) ────────────
     job_data = fetch_job_from_manatal(job_id)

@@ -284,9 +284,30 @@ def main() -> int:
             airtable.batch_update(batch)
         print("[OK] Updated\n")
 
-    # Upload local CV files (offline mode)
+    # Upload local CV files (offline mode only — online mode uses URL attachments)
     print("Processing CV attachments...")
-    existing_after = airtable.get_all_records_by_key(UNIQUE_KEY_FIELD)
+
+    # Check if all CVs are URL-based (online mode) — skip the expensive full-table
+    # fetch in that case, since the URL attachment was already set during create/update.
+    all_url_based = all(
+        is_http_url(item.get("_resume_url") or "")
+        for item in prepared
+        if item.get("_resume_url")
+    )
+    has_local_cvs = any(
+        item.get("_resume_local_path") and not is_http_url(item.get("_resume_url") or "")
+        for item in prepared
+    )
+
+    # Only fetch all records when we actually need to do local-file uploads.
+    existing_after: Dict[str, str] = {}
+    if has_local_cvs:
+        existing_after = airtable.get_records_by_formula(f"{{job_id}}={job_id_from_rows}")
+        existing_after = {
+            str(r["fields"].get(UNIQUE_KEY_FIELD) or "").strip(): r["id"]
+            for r in existing_after
+            if r["fields"].get(UNIQUE_KEY_FIELD)
+        }
 
     uploaded = 0
     skipped_url = 0
@@ -295,17 +316,17 @@ def main() -> int:
 
     for item in prepared:
         key = item["key"]
-        record_id = existing_after.get(key)
-        if not record_id:
-            skipped_no_record += 1
-            continue
-
         resume_url = item.get("_resume_url") or ""
         resume_local_path = item.get("_resume_local_path") or ""
         full_name = item.get("_full_name") or ""
 
         if resume_url and is_http_url(resume_url):
             skipped_url += 1
+            continue
+
+        record_id = existing_after.get(key)
+        if not record_id:
+            skipped_no_record += 1
             continue
 
         if not resume_local_path:

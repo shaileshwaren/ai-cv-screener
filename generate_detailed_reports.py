@@ -77,7 +77,6 @@ def _download_resume(url: str, candidate_id: str) -> str:
 # Airtable update function
 # =========================
 def update_airtable_report(
-    match_id: str,
     candidate_id: int,
     job_id: int,
     detailed_json: dict,
@@ -1183,9 +1182,7 @@ def main() -> int:
             print(f"  ✓ Generated: {json_path.name}, {html_path.name}")
 
             # Upload report to Airtable
-            match_id = (candidate.get("match_id") or "").strip() or f"{job_id}-{candidate_id}"
             if update_airtable_report(
-                match_id,
                 int(candidate_id),
                 int(job_id),
                 detailed_json,

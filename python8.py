@@ -242,7 +242,7 @@ def move_candidates_to_stage(
     """Move Manatal candidate matches to a target pipeline stage by name.
 
     Fetches the job's pipeline to resolve the target stage ID, then PATCHes
-    each match. Skips candidates already in the target stage or beyond it.
+    each match with the new stage.
     """
     if not manatal_match_ids:
         return
@@ -270,7 +270,6 @@ def move_candidates_to_stage(
             return
 
         target_id = target["id"]
-        target_rank = target.get("rank", 99)
 
     except Exception as e:
         print(f"  [WARN] Pipeline lookup failed: {e} — skipping stage move")
