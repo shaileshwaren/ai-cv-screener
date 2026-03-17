@@ -193,10 +193,14 @@ def process_single_job(job_id: str, config: dict, global_args: argparse.Namespac
 
         # ── STEP 4: Generate .docx Submission Reports ─────────────────────
         if not skip_submission:
+            submission_cmd = [sys.executable, str(GENERATE_SUBMISSION_REPORT), str(job_id)]
+            if rubric_regenerated:
+                submission_cmd.append("--force")
             run_step(
                 step_num, total_steps,
-                "Generate .docx Submission Reports",
-                [sys.executable, str(GENERATE_SUBMISSION_REPORT), str(job_id)],
+                "Generate .docx Submission Reports"
+                + (" [FORCE]" if rubric_regenerated else ""),
+                submission_cmd,
             )
         else:
             print("\nSkipped: Submission Reports")

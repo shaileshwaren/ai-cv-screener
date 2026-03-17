@@ -223,6 +223,18 @@ def _add_run(
     return run
 
 
+def _add_emoji_run(para, text: str, size_pt: float = 12.0):
+    """Add an emoji run without overriding font name or colour.
+
+    Deliberately omits font.name and font.color so Word uses its built-in
+    emoji font (Segoe UI Emoji on Windows) and renders the emoji in their
+    natural colours (green ✅, yellow ⚠️, red ❌).
+    """
+    run = para.add_run(text)
+    run.font.size = Pt(size_pt)
+    return run
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # .docx builder (pure Python)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -254,14 +266,17 @@ def build_docx(payload: Dict) -> bytes:
     # Column widths in DXA (1 DXA = 1/1440 inch). Total = 9360 ≈ 6.5 in (A4 with margins)
     W_REQ, W_FIT, W_EV = 3680, 1000, 4680
 
-    def score_to_fit(score) -> Tuple[str, str]:
+    def score_to_fit(score) -> Tuple[str, str, str]:
+        """Returns (emoji, label, colour_key)."""
         s = float(score) if score is not None else 0
-        if s >= 4:  return ("✅ ", "Meets")
-        if s >= 2:  return ("⚠  ", "Partial")
-        return          ("✗  ", "Not Met")
+        if s >= 4:  return ("\u2705",           "Meets",   "green")  # ✅
+        if s >= 2:  return ("\u26A0\uFE0F",    "Partial", "amber")  # ⚠️
+        return          ("\u274C",           "Not Met", "red")    # ❌
 
-    def compliance_to_fit(status) -> Tuple[str, str]:
-        return ("✅ ", "Meets") if (status or "").upper() == "PASS" else ("✗  ", "Not Met")
+    def compliance_to_fit(status) -> Tuple[str, str, str]:
+        if (status or "").upper() == "PASS":
+            return ("\u2705", "Meets",   "green")  # ✅
+        return     ("\u274C", "Not Met", "red")    # ❌
 
     # ── Document + page setup ─────────────────────────────────────────────────
     doc = Document()
@@ -385,9 +400,9 @@ def build_docx(payload: Dict) -> bytes:
             data_row = tbl.rows[row_i + 1]
 
             if "score" in item:
-                icon, fit_label = score_to_fit(item.get("score"))
+                icon, fit_label, fit_color = score_to_fit(item.get("score"))
             else:
-                icon, fit_label = compliance_to_fit(item.get("status", "FAIL"))
+                icon, fit_label, fit_color = compliance_to_fit(item.get("status", "FAIL"))
 
             req_text = item.get(req_key) or item.get("skill") or ""
             ev_text  = item.get(ev_key)  or "Not demonstrated"
@@ -420,8 +435,8 @@ def build_docx(payload: Dict) -> bytes:
             _set_cell_borders(c, top=b["top"], bottom=b["bottom"], left=b["left"], right=b["right"])
             _clear_cell(c)
             p = c.add_paragraph(); _set_para_spacing(p, 0, 0)
-            _add_run(p, icon,      size_pt=11)
-            _add_run(p, fit_label, size_pt=10)
+            _add_emoji_run(p, icon + " ", size_pt=11)
+            _add_run(p, fit_label, size_pt=10, color=fit_color)
 
             # Evidence
             c = data_row.cells[2]
@@ -533,16 +548,20 @@ _PLACEHOLDER_META: Dict[str, str] = {
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main() -> int:
-    if len(sys.argv) < 2:
-        print("Usage: python generate_submission_report.py <job_id>", file=sys.stderr)
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("job_id", help="Manatal Job ID (numeric)")
+    parser.add_argument("--force", action="store_true",
+                        help="Regenerate .docx for all qualifying candidates, "
+                             "even if traffic_rpt already exists (use after rubric change)")
+    args = parser.parse_args()
+
+    if not args.job_id.isdigit():
+        print(f"ERROR: job_id must be numeric, got: {args.job_id}", file=sys.stderr)
         return 2
 
-    job_id_str = sys.argv[1].strip()
-    if not job_id_str.isdigit():
-        print(f"ERROR: job_id must be numeric, got: {job_id_str}", file=sys.stderr)
-        return 2
-
-    job_id = int(job_id_str)
+    job_id = int(args.job_id)
+    force  = args.force
 
     try:
         Config.validate()
@@ -558,6 +577,8 @@ def main() -> int:
     print(f"{'='*70}")
     print(f"Job ID:    {job_id}")
     print(f"Threshold: {threshold}")
+    if force:
+        print(f"Mode:      FORCE — existing traffic_rpt will be overwritten")
     print(f"{'='*70}\n")
 
     # Load rubric for soft_skill category split
@@ -593,7 +614,7 @@ def main() -> int:
         full_name = fields.get("full_name", "Candidate")
         job_name  = fields.get("job_name",  f"Job {job_id}")
 
-        if fields.get("traffic_rpt"):
+        if fields.get("traffic_rpt") and not force:
             print(f"  Skipped (traffic_rpt exists): {full_name}")
             skipped += 1
             continue
