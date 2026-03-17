@@ -374,14 +374,24 @@ class AirtableClient:
             table_id=Config.AIRTABLE_JOB_TABLE_ID,
         )
         # job_id is a Number field — must NOT use quotes in the formula
-        records = client.get_records_by_formula(f"{{job_id}}={job_id}")
+        formula = f"{{job_id}}={job_id}"
+        records = client.get_records_by_formula(formula)
         if not records:
             return None
         raw = records[0]["fields"].get("rubric_json", "")
         if not raw:
             return None
+        # Airtable's "Enable rich text formatting" (Markdown) escapes underscores, turning
+        # valid JSON keys like "output_constraints" into "output\_constraints" which is an
+        # invalid JSON escape. Strip any backslash not starting a valid JSON escape sequence.
+        import re as _re_rubric
+        sanitized = _re_rubric.sub(r'\\(?![\"\\\/bfnrtu])', '', raw)
+        if sanitized != raw:
+            print(f"[WARN] rubric_json for job_id={job_id} had invalid escape sequences "
+                  f"(Airtable Markdown field). Auto-repaired. Disable 'Enable rich text "
+                  f"formatting' on the rubric_json field in Airtable to prevent this.")
         try:
-            return json.loads(raw)
+            return json.loads(sanitized)
         except (json.JSONDecodeError, TypeError):
             return None
 
