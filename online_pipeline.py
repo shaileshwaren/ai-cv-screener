@@ -182,10 +182,14 @@ def process_single_job(job_id: str, config: dict, global_args: argparse.Namespac
 
         # ── STEP 3: Generate Detailed Reports ────────────────────────────
         if not skip_reports:
+            reports_cmd = [sys.executable, str(GENERATE_REPORTS), str(job_id)]
+            if rubric_regenerated:
+                reports_cmd.append("--force")
             run_step(
                 step_num, total_steps,
-                "Generate Detailed Reports",
-                [sys.executable, str(GENERATE_REPORTS), str(job_id)],
+                "Generate Detailed Reports"
+                + (" [FORCE]" if rubric_regenerated else ""),
+                reports_cmd,
             )
             step_num += 1
         else:

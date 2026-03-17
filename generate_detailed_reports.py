@@ -1036,11 +1036,15 @@ def get_resume_path(candidate: Dict[str, Any]) -> Optional[Path]:
 # Main
 # =========================
 def main() -> int:
-    if len(sys.argv) < 2:
-        print("Usage: python3 generate_detailed_reports.py <JOB_ID>")
-        return 2
-    
-    job_id = sys.argv[1].strip()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("job_id", help="Manatal Job ID")
+    parser.add_argument("--force", action="store_true",
+                        help="Regenerate reports for all qualifying candidates, "
+                             "even if ai_report_html already exists (use after rubric change)")
+    args = parser.parse_args()
+    job_id = args.job_id.strip()
+    force  = args.force
     
     try:
         Config.validate()
@@ -1101,6 +1105,8 @@ def main() -> int:
 
     print(f"\n{'='*70}")
     print(f"Generating Detailed AI-Powered Reports for Job {job_id}")
+    if force:
+        print(f"Mode: FORCE — existing reports will be overwritten")
     print(f"{'='*70}")
     print(f"Total candidates: {total_candidates}")
     print(f"Candidates scoring ≥ {min_score}: {len(high_scorers)}")
@@ -1116,7 +1122,7 @@ def main() -> int:
         print(f"Processing: {full_name} (Score: {ai_score}, ID: {candidate_id})")
 
         # Skip if report already exists in Airtable for this rubric version
-        if cache_key and airtable_has_report.get(cache_key):
+        if cache_key and airtable_has_report.get(cache_key) and not force:
             print(f"  Skipped (Airtable): report already exists")
             continue
         
