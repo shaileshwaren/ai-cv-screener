@@ -41,14 +41,26 @@ CONFIG_FILE = HERE / "online_config.txt"
 ADVANCED_CONFIG_FILE = HERE / "online_advanced_config.txt"
 
 
-def run_step(step_num: int, total_steps: int, description: str, cmd: list[str]) -> int:
-    """Run a pipeline step. Returns the process exit code."""
+def run_step(
+    step_num: int,
+    total_steps: int,
+    description: str,
+    cmd: list[str],
+    extra_ok_codes: tuple = (),
+) -> int:
+    """Run a pipeline step. Returns the process exit code.
+
+    Only exit codes in (0,) + extra_ok_codes are treated as success;
+    everything else raises CalledProcessError and aborts the job.
+    Pass extra_ok_codes=(2,) for the rubric step where exit 2 means
+    "rubric was regenerated" rather than a fatal error.
+    """
     print(f"\n{'='*70}")
     print(f"[STEP {step_num}/{total_steps}] {description}")
     print(f"{'='*70}")
     print(f"Command: {' '.join(cmd)}\n")
     result = subprocess.run(cmd, check=False)
-    if result.returncode not in (0, 2):
+    if result.returncode not in (0,) + extra_ok_codes:
         raise subprocess.CalledProcessError(result.returncode, cmd)
     return result.returncode
 
@@ -66,9 +78,11 @@ def warn_missing_env() -> None:
 
 def validate_files_exist() -> None:
     scripts = {
+        "generate_rubric.py": GENERATE_RUBRIC,
         "python8.py": PYTHON8,
         "upload_airtable.py": UPLOAD_AIRTABLE,
         "generate_detailed_reports.py": GENERATE_REPORTS,
+        "generate_submission_report.py": GENERATE_SUBMISSION_REPORT,
     }
     missing = [f"{n} not found at {p}" for n, p in scripts.items() if not p.exists()]
     if missing:
@@ -145,6 +159,7 @@ def process_single_job(job_id: str, config: dict, global_args: argparse.Namespac
                 step_num, total_steps,
                 f"Rubric check/generate for job {job_id}",
                 [sys.executable, str(GENERATE_RUBRIC), str(job_id)],
+                extra_ok_codes=(2,),   # exit 2 = rubric was regenerated (not an error)
             )
             # Exit code 2 = rubric was (re)generated → force rescore of all candidates
             rubric_regenerated = (rubric_exit == 2)

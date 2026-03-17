@@ -366,15 +366,15 @@ class AirtableClient:
     def get_rubric(self, job_id: str) -> Optional[Dict[str, Any]]:
         """Fetch the rubric JSON for a job from the Job table.
 
-        Looks up by the singleLineText job_id field.
+        Looks up by the numeric job_id field (no quotes in formula).
         """
         client = AirtableClient(
             token=self.token,
             base_id=self.base_id,
             table_id=Config.AIRTABLE_JOB_TABLE_ID,
         )
-        # job_id is singleLineText in Job table — needs quotes in formula
-        records = client.get_records_by_formula(f'{{job_id}}="{job_id}"')
+        # job_id is a Number field — must NOT use quotes in the formula
+        records = client.get_records_by_formula(f"{{job_id}}={job_id}")
         if not records:
             return None
         raw = records[0]["fields"].get("rubric_json", "")
@@ -395,7 +395,7 @@ class AirtableClient:
             base_id=self.base_id,
             table_id=Config.AIRTABLE_JOB_TABLE_ID,
         )
-        records = client.get_records_by_formula(f'{{job_id}}="{job_id}"')
+        records = client.get_records_by_formula(f"{{job_id}}={job_id}")
         if not records:
             return False
         record_id = records[0]["id"]
@@ -426,11 +426,11 @@ class AirtableClient:
             "rubric_json": json.dumps(rubric, ensure_ascii=False),
         }
 
-        # Find existing Job record by singleLineText job_id field
-        records = client.get_records_by_formula(f'{{job_id}}="{job_id}"')
+        # Find existing Job record by numeric job_id field
+        records = client.get_records_by_formula(f"{{job_id}}={job_id}")
         if records:
             client.update_record(records[0]["id"], payload)
         else:
-            # No Job record yet — create a minimal one
-            payload["job_id"] = str(job_id)
+            # No Job record yet — create a minimal one (job_id stored as int)
+            payload["job_id"] = int(job_id)
             client.batch_create([payload])

@@ -609,7 +609,7 @@ def main() -> int:
 
     qualifying = [
         rec for rec in records
-        if float(rec["fields"].get("t2_score") or rec["fields"].get("t1_score") or rec["fields"].get("ai_score") or 0) >= threshold
+        if float(rec["fields"].get("t2_score") or rec["fields"].get("t1_score") or 0) >= threshold
     ]
     print(f"Candidates scoring >= {threshold}: {len(qualifying)}")
 
@@ -630,12 +630,8 @@ def main() -> int:
 
         print(f"\nProcessing: {full_name}")
 
-        overall_score = float(fields.get("t2_score") or fields.get("t1_score") or fields.get("ai_score") or 0)
-        recommendation = (
-            "PASS"   if overall_score >= 75 else
-            "REVIEW" if overall_score >= 65 else
-            "FAIL"
-        )
+        overall_score = float(fields.get("t2_score") or fields.get("t1_score") or 0)
+        recommendation = "PASS" if overall_score >= threshold else "FAIL"
 
         raw_json = fields.get("ai_detailed_json", "{}")
         try:

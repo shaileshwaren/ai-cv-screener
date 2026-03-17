@@ -504,6 +504,7 @@ def main() -> int:
         # Fetch existing candidates from Airtable and inject them for rescoring
         # using their stored cv_text (so already-processed candidates are covered).
         print(f"[force-rescore] Fetching existing Airtable candidates for job_id={job_id}...")
+        existing_records = []   # initialised here so the injection block below never hits NameError
         try:
             at_rescore = AirtableClient()
             existing_records = at_rescore.get_records_by_formula(f"{{job_id}}={job_id}")
@@ -609,7 +610,8 @@ def main() -> int:
     base = safe_filename(f"manatal_job_{job_id}_{Config.TARGET_STAGE_NAME}")
     rows: List[Dict[str, Any]] = []
     current_num = 0
-    manatal_match_ids: List[int] = []   # real Manatal match IDs for stage-move
+    pass_match_ids: List[int] = []   # candidates that pass threshold → AI Screened
+    fail_match_ids: List[int] = []   # candidates that fail threshold → Processed
 
     for match in matches:
         stage_name = extract_stage_name(match)
@@ -622,10 +624,8 @@ def main() -> int:
 
         match_id = f"{job_id}-{candidate_id}"
 
-        # Collect real Manatal match ID (int) for stage-move after scoring
+        # Save real Manatal match ID — appended to pass/fail list after scoring
         real_match_id = match.get("id")
-        if real_match_id and not match.get("_cv_text_override"):
-            manatal_match_ids.append(int(real_match_id))
 
         current_num += 1
 
@@ -746,6 +746,14 @@ def main() -> int:
 
         tier1_score = int(score.get("t1_score", score.get("ai_score", 0)))
 
+        # Route candidate to the appropriate Manatal stage based on score
+        if real_match_id and not match.get("_cv_text_override"):
+            mid = int(real_match_id)
+            if tier1_score >= Config.PASS_THRESHOLD:
+                pass_match_ids.append(mid)
+            else:
+                fail_match_ids.append(mid)
+
         rows.append({
             "organisation_id": org_id,
             "organisation_name": org_name,
@@ -800,10 +808,13 @@ def main() -> int:
     print(f"CSV : {csv_path}")
     print(f"Cache: {Config.CACHE_FILE}")
 
-    # Move processed candidates to the next pipeline stage in Manatal
-    if manatal_match_ids and Config.TARGET_STAGE_AFTER:
-        print(f"\nMoving {len(manatal_match_ids)} candidate(s) to '{Config.TARGET_STAGE_AFTER}' in Manatal...")
-        move_candidates_to_stage(manatal_match_ids, Config.TARGET_STAGE_AFTER, str(job_id))
+    # Move candidates to the appropriate Manatal stage based on threshold
+    if pass_match_ids and Config.TARGET_STAGE_AFTER:
+        print(f"\nMoving {len(pass_match_ids)} passing candidate(s) to '{Config.TARGET_STAGE_AFTER}' in Manatal...")
+        move_candidates_to_stage(pass_match_ids, Config.TARGET_STAGE_AFTER, str(job_id))
+    if fail_match_ids and Config.TARGET_STAGE_FAIL:
+        print(f"\nMoving {len(fail_match_ids)} failing candidate(s) to '{Config.TARGET_STAGE_FAIL}' in Manatal...")
+        move_candidates_to_stage(fail_match_ids, Config.TARGET_STAGE_FAIL, str(job_id))
 
     return 0
 

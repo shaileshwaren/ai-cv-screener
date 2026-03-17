@@ -1,7 +1,0 @@
-{
-  "name": "oxydata-recruitment",
-  "version": "1.0.0",
-  "dependencies": {
-    "docx": "^9.5.3"
-  }
-}

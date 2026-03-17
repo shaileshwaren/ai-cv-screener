@@ -67,6 +67,7 @@ class Config:
     # =========================
     TARGET_STAGE_NAME  = os.getenv("TARGET_STAGE_NAME",  "New Candidates")
     TARGET_STAGE_AFTER = os.getenv("TARGET_STAGE_AFTER", "AI Screened")
+    TARGET_STAGE_FAIL  = os.getenv("TARGET_STAGE_FAIL",  "Processed")
 
     DOWNLOAD_RESUMES = True
     SKIP_ALREADY_SCORED = True
@@ -92,6 +93,7 @@ class Config:
     # Field Mappings (CSV → Airtable)
     # =========================
     FIELD_MAP = {
+        "match_id":          "match_id",
         "organisation_id":   "organisation_id",
         "organisation_name": "organisation_name",
         "job_id":            "job_id",
@@ -114,6 +116,7 @@ class Config:
 
     # Field type definitions for upload normalisation
     TEXT_FIELDS = {
+        "match_id",
         "organisation_name",
         "job_name",
         "created_at", "updated_at",

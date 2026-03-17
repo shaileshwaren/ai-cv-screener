@@ -259,10 +259,10 @@ def main() -> int:
                 # so Tier 2 regenerates it for this candidate.
                 old_ck = existing_cache_keys.get(key, "")
                 new_ck = str(fields.get("cache_key") or "")
-                if old_ck and new_ck and old_ck != new_ck:
+                if new_ck and old_ck != new_ck:
                     fields["ai_report_html"] = []
                     fields["traffic_rpt"] = []
-                    print(f"  [INFO] Rubric changed for {key} — clearing stale HTML report and .docx")
+                    print(f"  [INFO] cache_key changed for {key} — clearing stale HTML report and .docx")
                 to_update.append({"id": existing[key], "fields": fields})
         else:
             if CREATE_MISSING:

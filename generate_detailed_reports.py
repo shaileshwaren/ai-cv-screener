@@ -1,28 +1,26 @@
 #!/usr/bin/env python3
 """generate_detailed_reports.py
 
-Generates detailed HTML reports for candidates scoring 80+ by RE-SCORING them
-with AI to get granular item-by-item breakdown.
+Generates detailed HTML reports (Tier 2) for candidates that meet the pass
+threshold, re-scoring them with AI for a granular item-by-item breakdown.
 
 This script:
 1. Reads scored candidates from output/upload/*.csv
-2. For candidates with ai_score >= 80:
-   - RE-SCORES them using OpenAI with detailed prompt
+2. For candidates with t1_score >= PASS_THRESHOLD:
+   - RE-SCORES them using OpenAI (gpt-4o) with detailed prompt
    - Gets REAL scores for each compliance/must-have/nice-to-have item
-   - Generates detailed scoring JSON (NO placeholders!)
-   - Creates beautiful HTML report
-   - Uploads HTML to Supabase (ai_report_html field)
-   - Generates text embeddings and saves to Supabase (candidate_chunks)
+   - Generates detailed scoring JSON (NO placeholders)
+   - Creates an HTML report
+   - Uploads the HTML to Airtable (ai_report_html attachment field)
 
 Usage:
   python3 generate_detailed_reports.py <JOB_ID>
-  python3 generate_detailed_reports.py 3419430
+  python3 generate_detailed_reports.py <JOB_ID> --force
 
 Output:
   - output/reports/candidate_{ID}_report.json
   - output/reports/candidate_{ID}_report.html
-  - Uploads HTML to Supabase (ai_report_html)
-  - Upserts vector chunks to Supabase (candidate_chunks)
+  - HTML uploaded to Airtable (ai_report_html)
 """
 
 from __future__ import annotations
@@ -87,9 +85,9 @@ def update_airtable_report(
 ) -> bool:
     """Upload the HTML report to Airtable and update candidate record fields.
 
-    Finds the candidate record by match_id (formula field = job_id-candidate_id),
+    Finds the candidate record by (job_id, candidate_id),
     uploads the HTML as an attachment to ai_report_html, and stores the
-    detailed JSON string + tier2_score.
+    detailed JSON string + t2_score.
     """
     try:
         at = AirtableClient()
@@ -411,7 +409,7 @@ def llm_score_detailed(
     
     try:
         r = oa.chat.completions.create(
-            model=Config.OPENAI_MODEL,
+            model=Config.REPORT_OPENAI_MODEL,   # gpt-4o for Tier 2 — more accurate than gpt-4o-mini
             messages=[
                 {"role": "system", "content": "You are a technical recruiter. Respond only with valid JSON. No markdown, no code blocks."},
                 {"role": "user", "content": prompt}
@@ -1078,7 +1076,7 @@ def main() -> int:
     
     total_candidates = len(candidates)
     min_score = Config.MIN_SCORE_FOR_REPORT
-    # Prefer tier1_score (set by python8.py Tier 1 pass); fall back to ai_score for legacy CSVs
+    # Prefer t1_score (set by python8.py Tier 1 pass); fall back to ai_score for legacy CSVs
     high_scorers = [
         c for c in candidates
         if float(c.get("t1_score") or c.get("ai_score") or 0) >= min_score
