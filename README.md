@@ -1,103 +1,62 @@
-# Supabase-NocoDB Pipeline
+# AI Recruitment Pipeline — Airtable + Render Frontend
 
-A recruitment pipeline that fetches candidate data from the **Manatal API**, scores it with AI, and writes results **directly to Supabase** — with NocoDB used as the front-end view.
+A full-stack web service that wraps the AI recruitment scoring pipeline with a live dashboard.
 
-## Data Flow
+## Features
 
-```
-Manatal API
-    ↓  (python8.py)
-AI Scoring & CSV output
-    ↓  (upload_supabase.py)
-Supabase (candidates table + Storage + embeddings)
-    ↓  (generate_detailed_reports.py)
-HTML Reports
-```
+- **Live streaming logs** — watch the pipeline run in real time via Server-Sent Events
+- **Multi-job support** — add multiple job IDs and process them in one run
+- **Candidate dashboard** — view Tier 1 & Tier 2 scores pulled directly from Airtable
+- **Report viewer** — one-click access to detailed AI-generated candidate reports
+- **Configurable** — adjust pass threshold, pipeline stage, and skip options per run
 
-**No Airtable involved.**
+## Tech Stack
 
----
+| Layer | Technology |
+|---|---|
+| Backend | FastAPI + Uvicorn |
+| Frontend | Alpine.js + Tailwind CSS |
+| Pipeline | Python subprocess (online_pipeline.py) |
+| Data | Airtable REST API |
 
-## Setup
-
-### 1. Create virtual environment
+## Local Development
 
 ```bash
-python -m venv .venv
-.venv\Scripts\activate        # Windows
-# source .venv/bin/activate   # macOS/Linux
+# 1. Clone the repo
+git clone https://github.com/shaileshwaren/airtable-pipeline-render-frontend.git
+cd airtable-pipeline-render-frontend
+
+# 2. Install dependencies
 pip install -r requirements.txt
+
+# 3. Copy and fill in environment variables
+cp .env.example .env
+# Edit .env with your API keys
+
+# 4. Run the server
+uvicorn main:app --reload --port 8000
+# Open http://localhost:8000
 ```
 
-### 2. Configure `.env`
+## Deploying to Render
 
-Edit `.env` and confirm all values:
+1. Push this repo to GitHub
+2. Create a new **Web Service** on [Render](https://render.com)
+3. Connect the GitHub repo
+4. Set environment variables (see `.env.example`) in the Render dashboard
+5. Deploy — Render auto-detects `render.yaml`
+
+## Environment Variables
 
 | Variable | Description |
 |---|---|
-| `MANATAL_API_TOKEN` | Manatal API token |
+| `MANATAL_API_TOKEN` | Manatal Open API token |
 | `OPENAI_API_KEY` | OpenAI API key |
-| `SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_KEY` | Supabase service role key |
-| `SUPABASE_DB_URL` | Direct PostgreSQL connection string |
-| `SUPABASE_STORAGE_BUCKET` | Storage bucket (default: `candidate_files`) |
-
-### 3. Seed rubrics in Supabase
-
-Rubrics are stored in a Supabase table called `rubrics` and are loaded at runtime by job ID.
-
-During development you can:
-
-- Author rubrics locally under `rubrics/` (YAML or JSON), e.g. `rubrics/rubric_<JOB_ID>.json`
-- Then run:
-
-```bash
-python sync_rubrics_to_supabase.py
-```
-
-This will upsert all local rubric files into the `rubrics` table. The online pipeline (`python8.py`) and detailed reports (`generate_detailed_reports.py`) will then fetch rubrics directly from Supabase.
-
----
-
-## Usage
-
-### Online Pipeline (full run)
-
-```bash
-# Single job
-python online_pipeline.py 3419430
-
-# Multiple jobs
-python online_pipeline.py "3419430, 3261113"
-
-# Skip steps
-python online_pipeline.py 3419430 --skip-upload --skip-reports
-```
-
-### Upload to Supabase only
-
-```bash
-python upload_supabase.py 3419430
-```
-
----
-
-## Project Structure
-
-```
-supabase nocodb pipeline/
-├── online_pipeline.py          # Main orchestrator
-├── upload_supabase.py          # Supabase upsert + embeddings
-├── python8.py                  # AI scoring (fetches from Manatal)
-├── generate_detailed_reports.py
-├── config.py                   # Centralized config
-├── utils.py
-├── src/
-│   ├── supabase_client.py      # Supabase wrapper
-│   ├── embedding_client.py     # OpenAI embeddings
-│   └── text_processor.py       # PDF/DOCX text extraction
-├── rubrics/                    # Per-job YAML rubrics
-├── output/                     # Scored CSVs, reports
-├── .env                        # Credentials (do not commit)
-└── requirements.txt
-```
+| `AIRTABLE_TOKEN` | Airtable Personal Access Token |
+| `AIRTABLE_BASE_ID` | Airtable base ID (e.g. `appXXXX`) |
+| `AIRTABLE_TABLE_ID` | Candidate table ID |
+| `AIRTABLE_RUBRIC_TABLE_ID` | Rubric table ID |
+| `AIRTABLE_JOB_TABLE_ID` | Job table ID |
+| `PASS_THRESHOLD` | Min score for PASS status (default: 75) |
+| `TARGET_STAGE_NAME` | Manatal stage to pull candidates from (default: New Candidates) |
+| `TARGET_STAGE_AFTER` | Manatal stage to move candidates to after scoring (default: AI Screened) |

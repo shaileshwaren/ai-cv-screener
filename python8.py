@@ -484,7 +484,7 @@ def main() -> int:
             r["fields"]["cache_key"]: r["fields"]
             for r in existing_at_records
             if r["fields"].get("cache_key")
-               and r["fields"].get("tier1_score") is not None
+               and r["fields"].get("t1_score") is not None
         }
         print(f"Found {len(airtable_scored)} already-scored candidate(s) in Airtable for this job\n")
     except Exception as e:
@@ -659,10 +659,10 @@ def main() -> int:
 
         if Config.SKIP_ALREADY_SCORED and not force_rescore and cache_key in airtable_scored:
             at_fields = airtable_scored[cache_key]
-            tier1_score = int(at_fields.get("tier1_score") or at_fields.get("ai_score") or 0)
+            tier1_score = int(at_fields.get("t1_score") or at_fields.get("ai_score") or 0)
             score = {
-                "ai_score":     tier1_score,
-                "tier1_score":  tier1_score,
+                "ai_score":    tier1_score,
+                "t1_score":    tier1_score,
                 "ai_summary":   at_fields.get("ai_summary", ""),
                 "ai_strengths": at_fields.get("ai_strengths", ""),
                 "ai_gaps":      at_fields.get("ai_gaps", ""),
@@ -720,8 +720,8 @@ def main() -> int:
 
             tier1_score = int(t1_result.get("score", 0))
             score = {
-                "ai_score":     tier1_score,
-                "tier1_score":  tier1_score,
+                "ai_score":    tier1_score,
+                "t1_score":    tier1_score,
                 "ai_summary":   t1_result.get("ai_summary", ""),
                 "ai_strengths": t1_result.get("ai_strengths", ""),
                 "ai_gaps":      t1_result.get("ai_gaps", ""),
@@ -733,7 +733,7 @@ def main() -> int:
                 "candidate_id":     candidate_id,
                 "rubric_version":   rubric_version,
                 "rubric_hash":      rubric_hash,
-                "tier1_score":      tier1_score,
+                "t1_score":         tier1_score,
                 "ai_score":         tier1_score,
                 "ai_summary":       score["ai_summary"],
                 "ai_strengths":     score["ai_strengths"],
@@ -744,7 +744,7 @@ def main() -> int:
             no_resume_flag = "  [no resume]" if no_resume else ""
             print(f"Scored: {current_num}/{total_in_stage}. {full_name} (ID: {candidate_id}) -> Tier1: {tier1_score}{no_resume_flag}")
 
-        tier1_score = int(score.get("tier1_score", score.get("ai_score", 0)))
+        tier1_score = int(score.get("t1_score", score.get("ai_score", 0)))
 
         rows.append({
             "organisation_id": org_id,
@@ -758,10 +758,10 @@ def main() -> int:
             "candidate_id": candidate_id,
             "full_name": full_name,
             "email": email,
-            "resume_file": resume_url,
             "resume_local_path": resume_local_path,
+            "_cv_url":      resume_url,
             "cv_text":      clip(resume_text, Config.MAX_RESUME_CHARS) if resume_text else "No resume attached.",
-            "tier1_score":  tier1_score,
+            "t1_score":     tier1_score,
             "ai_score":     tier1_score,
             "ai_summary":   score.get("ai_summary", ""),
             "ai_strengths": score.get("ai_strengths", ""),
@@ -783,9 +783,9 @@ def main() -> int:
         "organisation_id", "organisation_name", "job_id", "job_name", "match_id",
         "created_at", "updated_at", "match_stage_name",
         "candidate_id", "full_name", "email",
-        "resume_file", "resume_local_path",
+        "resume_local_path", "_cv_url",
         "cv_text",
-        "tier1_score",
+        "t1_score",
         "ai_score", "ai_summary", "ai_strengths", "ai_gaps", "ai_report_html",
         "rubric_version", "rubric_hash", "cache_key",
     ]

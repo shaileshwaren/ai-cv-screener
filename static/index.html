@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Oxydata AI Agentic Recruitment System</title>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      color: #1a1a1a;
+      font-size: 15px;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: #2d3748;
+      color: #fff;
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 1.35rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .header .subtitle {
+      margin: 0.2rem 0 0;
+      font-size: 0.8rem;
+      opacity: 0.75;
+    }
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.85rem;
+      color: #68d391;
+      font-weight: 500;
+    }
+    .live-badge::before {
+      content: '';
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #68d391;
+    }
+
+    /* ── Layout ── */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .card h2 {
+      margin: 0 0 1.1rem;
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #1a202c;
+    }
+
+    /* ── Form fields ── */
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+    .field label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: #718096;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .field input {
+      padding: 0.45rem 0.75rem;
+      font-size: 0.9rem;
+      border: 1px solid #cbd5e0;
+      border-radius: 6px;
+      outline: none;
+      background: #fff;
+      color: #1a202c;
+      transition: border-color .15s;
+    }
+    .field input:focus {
+      border-color: #805ad5;
+      box-shadow: 0 0 0 2px rgba(128,90,213,.12);
+    }
+
+    /* Config row — inline at top of form */
+    .config-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: flex-end;
+      margin-bottom: 1.1rem;
+    }
+    .field-cutoff input { width: 130px; }
+    .field-stage  input { width: 200px; }
+
+    /* ── Job rows ── */
+    .job-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      margin-bottom: 0.9rem;
+    }
+    .job-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.75rem;
+      background: #f7fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .job-row .field { flex: 1; min-width: 140px; }
+    .job-row .field input { width: 100%; }
+
+    .btn-remove {
+      flex-shrink: 0;
+      padding: 0.45rem 0.75rem;
+      font-size: 0.82rem;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      color: #718096;
+      cursor: pointer;
+      transition: background .12s, color .12s, border-color .12s;
+    }
+    .btn-remove:hover { background: #fed7d7; color: #c53030; border-color: #feb2b2; }
+
+    /* ── Buttons ── */
+    .btn-add {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.45rem 1rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      background: #4a5568;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background .12s;
+      margin-bottom: 1rem;
+    }
+    .btn-add:hover { background: #2d3748; }
+
+    .btn-run {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1.5rem;
+      font-size: 0.95rem;
+      font-weight: 700;
+      background: #805ad5;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background .12s;
+    }
+    .btn-run:hover:not(:disabled) { background: #6b46c1; }
+    .btn-run:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-run svg { width: 16px; height: 16px; }
+
+    /* ── Status bar ── */
+    .status-bar {
+      padding: 0.7rem 1rem;
+      border-radius: 6px;
+      margin-bottom: 1rem;
+      font-size: 0.88rem;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .status-bar.running  { background: #bee3f8; color: #2b6cb0; }
+    .status-bar.success  { background: #c6f6d5; color: #276749; }
+    .status-bar.failed   { background: #fed7d7; color: #c53030; }
+
+    /* ── Terminal ── */
+    .terminal-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: #718096;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.5rem;
+    }
+    .terminal {
+      background: #1a202c;
+      color: #e2e8f0;
+      font-family: ui-monospace, 'Cascadia Code', 'Fira Code', Consolas, monospace;
+      font-size: 0.78rem;
+      line-height: 1.65;
+      padding: 1rem;
+      border-radius: 8px;
+      min-height: 200px;
+      max-height: 420px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .t-step { color: #9f7aea; font-weight: 600; }
+    .t-ok   { color: #68d391; }
+    .t-warn { color: #f6ad55; }
+    .t-err  { color: #fc8181; }
+    .t-info { color: #63b3ed; }
+    .t-dim  { color: #718096; }
+
+    /* ── Results tables ── */
+    .results-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 0.9rem;
+    }
+    .results-header h2 { margin: 0; font-size: 1.05rem; font-weight: 600; color: #1a202c; }
+    .meta-text { font-size: 0.8rem; color: #718096; }
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 10px;
+      border-radius: 9999px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      background: #ebf8ff;
+      color: #2b6cb0;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      text-align: left;
+      padding: 9px 12px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: #718096;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    td {
+      padding: 11px 12px;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 0.87rem;
+      vertical-align: middle;
+    }
+    tr.row-clickable { cursor: pointer; }
+    tr.row-clickable:hover td { background: #f7fafc; }
+
+    /* Expand detail row */
+    tr.detail-row td { padding: 0; background: #fafafa; }
+    .detail-inner {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 12px;
+      padding: 14px 20px;
+    }
+    .detail-block {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 12px;
+    }
+    .detail-block h4 {
+      margin: 0 0 6px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #4a5568;
+    }
+    .detail-block.strengths h4 { color: #276749; }
+    .detail-block.gaps h4      { color: #c05621; }
+    .detail-block p { margin: 0; font-size: 0.82rem; line-height: 1.6; color: #2d3748; }
+
+    /* Score badge */
+    .score-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 36px;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      font-weight: 700;
+      font-size: 0.88rem;
+    }
+    .score-high { background: #c6f6d5; color: #276749; }
+    .score-mid  { background: #feebc8; color: #c05621; }
+    .score-low  { background: #fed7d7; color: #c53030; }
+    .score-none { background: #edf2f7; color: #a0aec0; }
+
+    .name-sub { font-size: 0.75rem; color: #718096; margin-top: 1px; }
+    .link-view { color: #805ad5; text-decoration: none; font-weight: 500; font-size: 0.82rem; }
+    .link-view:hover { text-decoration: underline; }
+
+    .table-hint {
+      padding: 9px 12px;
+      font-size: 0.75rem;
+      color: #a0aec0;
+      border-top: 1px solid #e2e8f0;
+      margin-top: 2px;
+    }
+
+    /* Spinner */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { animation: spin 0.8s linear infinite; display: inline-block; }
+
+    [x-cloak] { display: none !important; }
+  </style>
+</head>
+<body x-data="app()" x-cloak>
+
+  <!-- ── HEADER ── -->
+  <header class="header">
+    <div>
+      <h1>&#129302; Oxydata AI Agentic Recruitment System</h1>
+      <p class="subtitle">Powered by GPT-4o-mini &middot; Manatal ATS &middot; Airtable</p>
+    </div>
+    <span class="live-badge" x-text="serverLive ? 'Live' : 'Offline'"></span>
+  </header>
+
+  <div class="container">
+
+    <!-- ── RUN CARD ── -->
+    <section class="card">
+      <h2>Run AI Candidate Scoring</h2>
+
+      <!-- 1. PIPELINE STAGE + TIER 2 CUTOFF -->
+      <div class="config-row">
+        <div class="field field-stage">
+          <label>Pipeline Stage</label>
+          <input type="text" x-model="stageName" placeholder="New Candidates" readonly style="background:#f0f0f0;cursor:not-allowed;color:#666;" />
+        </div>
+        <div class="field field-cutoff">
+          <label>Tier 2 Cutoff (%)</label>
+          <input type="number" min="0" max="100" x-model.number="passCutoff" placeholder="Default: 60" />
+        </div>
+      </div>
+
+      <!-- 2. JOB ID rows -->
+      <div class="job-rows">
+        <template x-for="(jid, i) in jobIds" :key="i">
+          <div class="job-row">
+            <div class="field">
+              <label>Job ID</label>
+              <input
+                type="text"
+                :value="jid"
+                @input="jobIds[i] = $event.target.value"
+                placeholder="e.g. 3419430"
+              />
+            </div>
+            <button
+              class="btn-remove"
+              @click="removeJob(i)"
+              x-show="jobIds.length > 1"
+            >Remove</button>
+          </div>
+        </template>
+      </div>
+
+      <!-- 3. + Add job -->
+      <button class="btn-add" @click="addJob()">+ Add job</button>
+
+      <!-- 4. Run AI Scoring -->
+      <div>
+        <button
+          class="btn-run"
+          @click="runPipeline()"
+          :disabled="isRunning || jobIds.filter(j => j.trim()).length === 0"
+        >
+          <template x-if="!isRunning">
+            <span style="display:inline-flex;align-items:center;gap:6px">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              Run AI Scoring
+            </span>
+          </template>
+          <template x-if="isRunning">
+            <span style="display:inline-flex;align-items:center;gap:8px">
+              <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="16" height="16">
+                <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+                <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
+              </svg>
+              Running…
+            </span>
+          </template>
+        </button>
+      </div>
+    </section>
+
+    <!-- ── STATUS BAR ── -->
+    <div
+      class="status-bar"
+      :class="statusType"
+      x-show="statusMsg"
+      x-text="statusMsg"
+    ></div>
+
+    <!-- ── TERMINAL ── -->
+    <section class="card">
+      <div class="terminal-label">Terminal</div>
+      <div class="terminal" x-ref="terminal">
+        <template x-if="logs.length === 0">
+          <span class="t-dim">No output yet. Run AI Scoring to see pipeline logs.</span>
+        </template>
+        <template x-for="(line, i) in logs" :key="i">
+          <div :class="lineClass(line)" x-text="line"></div>
+        </template>
+        <div x-ref="logBottom"></div>
+      </div>
+    </section>
+
+    <!-- ── CANDIDATE RESULTS (Tier 1) ── -->
+    <template x-if="selectedJobId && (candidateMap[selectedJobId] || []).length > 0">
+      <section class="card">
+        <div class="results-header">
+          <h2>First Pass Results</h2>
+          <span class="meta-text" x-text="(candidateMap[selectedJobId] || []).length + ' candidates · sorted by score'"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Candidate</th>
+                <th>Current Role</th>
+                <th>Score</th>
+                <th>Stage</th>
+                <th>Resume</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="(c, i) in (candidateMap[selectedJobId] || [])" :key="c.candidate_id">
+                <!-- Main row -->
+                <tr class="row-clickable" @click="toggleExpand(c.candidate_id)">
+                  <td x-text="i + 1"></td>
+                  <td>
+                    <strong x-text="c.full_name"></strong>
+                    <div class="name-sub" x-text="c.email"></div>
+                  </td>
+                  <td>
+                    <strong x-text="c.job_name || '—'"></strong>
+                    <div class="name-sub" x-text="c.org_name"></div>
+                  </td>
+                  <td>
+                    <span class="score-badge" :class="scoreCls(c.t1_score)" x-text="c.t1_score ?? '—'"></span>
+                  </td>
+                  <td x-text="c.match_stage_name || '—'"></td>
+                  <td>
+                    <a class="link-view" :href="c.cv_url" target="_blank" @click.stop x-show="c.cv_url">View</a>
+                    <span style="color:#cbd5e0" x-show="!c.cv_url">—</span>
+                  </td>
+                </tr>
+                <!-- Expanded detail — x-show keeps the <tr> in the DOM (x-if inside tbody is stripped by browser) -->
+                <tr class="detail-row" x-show="expandedId === c.candidate_id">
+                  <td colspan="6">
+                    <div class="detail-inner">
+                      <div class="detail-block">
+                        <h4>&#128214; Summary</h4>
+                        <p x-text="c.ai_summary || '—'"></p>
+                      </div>
+                      <div class="detail-block strengths">
+                        <h4>&#10003; Strengths</h4>
+                        <p x-text="c.ai_strengths || '—'"></p>
+                      </div>
+                      <div class="detail-block gaps">
+                        <h4>&#9888; Gaps</h4>
+                        <p x-text="c.ai_gaps || '—'"></p>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </template>
+
+    <!-- ── REPORT RESULTS (Tier 2) ── -->
+    <template x-if="reportCandidates.length > 0">
+      <section class="card">
+        <div class="results-header">
+          <h2>Final Results</h2>
+          <span class="badge-pill">High-scoring &amp; rescored</span>
+          <span class="meta-text" x-text="reportCandidates.length + ' candidates with reports'"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Candidate</th>
+                <th>Current Role</th>
+                <th>New Score</th>
+                <th>Stage</th>
+                <th>Resume</th>
+                <th>Report</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="(c, i) in reportCandidates" :key="c.candidate_id">
+                <tr>
+                  <td x-text="i + 1"></td>
+                  <td>
+                    <strong x-text="c.full_name"></strong>
+                    <div class="name-sub" x-text="c.email"></div>
+                  </td>
+                  <td>
+                    <strong x-text="c.job_name || '—'"></strong>
+                    <div class="name-sub" x-text="c.org_name"></div>
+                  </td>
+                  <td>
+                    <span class="score-badge" :class="scoreCls(c.t2_score ?? c.t1_score)" x-text="c.t2_score ?? c.t1_score ?? '—'"></span>
+                  </td>
+                  <td x-text="c.match_stage_name || '—'"></td>
+                  <td>
+                    <a class="link-view" :href="c.cv_url" target="_blank" x-show="c.cv_url">View</a>
+                    <span style="color:#cbd5e0" x-show="!c.cv_url">—</span>
+                  </td>
+                  <td>
+                    <a class="link-view" :href="c.report_url" target="_blank" x-show="c.report_url">View report</a>
+                    <span style="color:#cbd5e0" x-show="!c.report_url">—</span>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </template>
+
+  </div><!-- /container -->
+
+  <!-- ── ALPINE APP ── -->
+  <script>
+    function app() {
+      return {
+        serverLive: false,
+
+        // Form state
+        passCutoff: null,
+        stageName: 'New Candidates',
+        jobIds: [''],
+
+        // Run state
+        isRunning: false,
+        runId: null,
+        statusMsg: '',
+        statusType: 'running',
+
+        // Logs
+        logs: [],
+
+        // Results
+        selectedJobId: null,
+        candidateMap: {},   // { job_id: [] }
+        expandedId: null,
+
+        get reportCandidates() {
+          return (this.candidateMap[this.selectedJobId] || []).filter(c => c.report_url);
+        },
+
+        async init() {
+          fetch('/health').then(r => r.ok && (this.serverLive = true)).catch(() => {});
+          // Pre-fill cutoff from server .env default; user can still override it
+          try {
+            const d = await fetch('/api/defaults').then(r => r.json());
+            if (d.pass_threshold != null) this.passCutoff = d.pass_threshold;
+          } catch (_) {}
+        },
+
+        // ── Job management ──
+        addJob()        { this.jobIds.push(''); },
+        removeJob(i)    { if (this.jobIds.length > 1) this.jobIds.splice(i, 1); },
+
+        // ── Pipeline run ──
+        async runPipeline() {
+          const validIds = this.jobIds.map(j => j.trim()).filter(Boolean);
+          if (!validIds.length || this.isRunning) return;
+
+          this.isRunning = true;
+          this.logs = [];
+          this.selectedJobId = null;
+          this.candidateMap = {};
+          this.setStatus('Starting pipeline… watch the terminal below.', 'running');
+
+          try {
+            const res = await fetch('/api/run', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                job_ids:        validIds,
+                pass_threshold: this.passCutoff ?? 60,
+                stage_name:     this.stageName   || 'New Candidates',
+                skip_rubric:    false,
+                skip_reports:   false,
+              }),
+            });
+            const data = await res.json();
+            this.runId = data.run_id;
+
+            const es = new EventSource(`/api/stream/${this.runId}`);
+            es.onmessage = (evt) => {
+              const msg = evt.data;
+              if (msg === '[heartbeat]') return;
+              if (msg.startsWith('[PIPELINE_DONE:')) {
+                const ok = msg.includes(':success');
+                this.isRunning = false;
+                this.setStatus(
+                  ok ? 'Done. Results loaded below.' : 'Pipeline finished with errors. Check terminal.',
+                  ok ? 'success' : 'failed'
+                );
+                es.close();
+                validIds.forEach(jid => this.loadCandidates(jid));
+                return;
+              }
+              this.logs.push(msg);
+              // Dynamically update status bar to reflect current pipeline step
+              const parsed = this.parseStatus(msg);
+              if (parsed) this.setStatus(parsed, 'running');
+              this.$nextTick(() => {
+                this.$refs.logBottom?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+              });
+            };
+            es.onerror = () => {
+              if (this.isRunning) {
+                this.isRunning = false;
+                this.setStatus('Connection lost. Check server logs.', 'failed');
+              }
+              es.close();
+            };
+          } catch (err) {
+            this.isRunning = false;
+            this.setStatus('Error: ' + err.message, 'failed');
+          }
+        },
+
+        setStatus(msg, type) {
+          this.statusMsg  = msg;
+          this.statusType = type;
+        },
+
+        // Parse a log line and return a human-readable status string, or null
+        parseStatus(line) {
+          let m;
+          // Multi-job header: Processing Job 1 of 2: 3261113
+          m = line.match(/Processing Job (\d+) of (\d+):\s*(\S+)/);
+          if (m) return `Processing job ${m[3]} (${m[1]} of ${m[2]})…`;
+
+          // Step header: [STEP 2/4] AI Scoring (fetch from Manatal + score against rubric)
+          m = line.match(/\[STEP\s+(\d+)\/(\d+)\]\s+(.+)/);
+          if (m) return `Step ${m[1]}/${m[2]} — ${m[3].trim()}`;
+
+          // Found N candidates in stage
+          m = line.match(/Found (\d+) candidates? in '(.+)' stage/);
+          if (m) return `Found ${m[1]} candidate(s) — running Tier 1 scoring…`;
+
+          // Rubric regenerated → rescore triggered
+          if (line.includes('Rubric was regenerated')) return 'Rubric updated — rescoring all candidates…';
+
+          // Tier 2 reports
+          if (line.includes('Generating Detailed AI-Powered Reports')) {
+            m = line.match(/Job (\S+)$/);
+            return m ? `Generating Tier 2 reports for job ${m[1]}…` : 'Generating Tier 2 reports…';
+          }
+          if (line.includes('Uploaded report to Airtable')) return 'Uploading reports to Airtable…';
+          if (line.includes('AI-Powered Report Generation Complete')) return 'Tier 2 reports complete ✓';
+
+          // Stage move
+          m = line.match(/Moving (\d+) candidate\(s\) to '(.+)'/);
+          if (m) return `Moving ${m[1]} candidate(s) to "${m[2]}"…`;
+          m = line.match(/Moved (\d+) candidate\(s\) to '(.+)'/);
+          if (m) return `Moved ${m[1]} candidate(s) to "${m[2]}" ✓`;
+
+          // Job complete
+          m = line.match(/Job (\S+) completed successfully/);
+          if (m) return `Job ${m[1]} complete ✓ — loading next…`;
+
+          return null;
+        },
+
+        // ── Load candidates from Airtable ──
+        async loadCandidates(jobId) {
+          const jid = String(jobId);
+          // Show the first job's results
+          if (!this.selectedJobId) this.selectedJobId = jid;
+          try {
+            const r = await fetch(`/api/candidates/${jid}`);
+            const d = await r.json();
+            this.candidateMap[jid] = d.candidates || [];
+            // Trigger reactivity
+            this.candidateMap = { ...this.candidateMap };
+          } catch {
+            this.candidateMap[jid] = [];
+          }
+        },
+
+        toggleExpand(id) {
+          this.expandedId = this.expandedId === id ? null : id;
+        },
+
+        // ── Helpers ──
+        lineClass(line) {
+          if (!line) return 't-dim';
+          if (line.includes('======') || line.includes('[STEP '))       return 't-step';
+          if (line.includes('[OK]')   || line.includes('completed successfully')) return 't-ok';
+          if (line.includes('[WARN]') || line.includes('[no resume]'))  return 't-warn';
+          if (line.includes('[ERROR]')|| line.includes('ERROR:'))       return 't-err';
+          if (line.includes('[INFO]') || line.includes('Skipped (Airtable)') || line.includes('[force-rescore]')) return 't-info';
+          if (line.startsWith('  ')   || line === '')                   return 't-dim';
+          return '';
+        },
+
+        scoreCls(score) {
+          if (score == null) return 'score-none';
+          const cut = this.passCutoff ?? 60;
+          if (score >= cut)       return 'score-high';
+          if (score >= cut * 0.7) return 'score-mid';
+          return 'score-low';
+        },
+      };
+    }
+  </script>
+</body>
+</html>

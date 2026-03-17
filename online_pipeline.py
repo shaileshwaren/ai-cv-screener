@@ -36,6 +36,7 @@ PYTHON8 = HERE / "python8.py"
 UPLOAD_AIRTABLE = HERE / "upload_airtable.py"
 GENERATE_REPORTS = HERE / "generate_detailed_reports.py"
 GENERATE_RUBRIC = HERE / "generate_rubric.py"
+GENERATE_SUBMISSION_REPORT = HERE / "generate_submission_report.py"
 CONFIG_FILE = HERE / "online_config.txt"
 ADVANCED_CONFIG_FILE = HERE / "online_advanced_config.txt"
 
@@ -124,6 +125,7 @@ def process_single_job(job_id: str, config: dict, global_args: argparse.Namespac
     skip_scoring = global_args.skip_scoring or config.get("skip_scoring", False)
     skip_upload = global_args.skip_upload or config.get("skip_upload", False)
     skip_reports = global_args.skip_reports or config.get("generate_reports", True) == False
+    skip_submission = config.get("skip_submission", False)
 
     print(f"\n{'='*70}")
     print(f"Processing Job: {job_id}")
@@ -132,7 +134,7 @@ def process_single_job(job_id: str, config: dict, global_args: argparse.Namespac
     print(f"INFO: Job name, org ID, and org name will be fetched from Manatal API")
     print(f"{'='*70}\n")
 
-    total_steps = sum([not skip_rubric, not skip_scoring, not skip_upload, not skip_reports])
+    total_steps = sum([not skip_rubric, not skip_scoring, not skip_upload, not skip_reports, not skip_submission])
     step_num = 1
 
     try:
@@ -185,8 +187,19 @@ def process_single_job(job_id: str, config: dict, global_args: argparse.Namespac
                 "Generate Detailed Reports",
                 [sys.executable, str(GENERATE_REPORTS), str(job_id)],
             )
+            step_num += 1
         else:
             print("\nSkipped: Detailed Reports")
+
+        # ── STEP 4: Generate .docx Submission Reports ─────────────────────
+        if not skip_submission:
+            run_step(
+                step_num, total_steps,
+                "Generate .docx Submission Reports",
+                [sys.executable, str(GENERATE_SUBMISSION_REPORT), str(job_id)],
+            )
+        else:
+            print("\nSkipped: Submission Reports")
 
         print(f"\n{'='*70}")
         print(f"Job {job_id} completed successfully!")

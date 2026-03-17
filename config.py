@@ -102,9 +102,8 @@ class Config:
         "candidate_id":      "candidate_id",
         "full_name":         "full_name",
         "email":             "email",
-        "resume_file":       "resume_file",
         "cv_text":           "cv_text",
-        "tier1_score":       "tier1_score",
+        "t1_score":          "t1_score",
         "ai_summary":        "ai_summary",
         "ai_strengths":      "ai_strengths",
         "ai_gaps":           "ai_gaps",
@@ -120,7 +119,6 @@ class Config:
         "created_at", "updated_at",
         "match_stage_name",
         "full_name", "email",
-        "resume_file",
         "cv_text",
         "ai_summary", "ai_strengths", "ai_gaps",
         "rubric_version", "rubric_hash",
@@ -128,7 +126,7 @@ class Config:
     }
 
     NUMBER_FIELDS = {
-        "ai_score", "tier1_score", "tier2_score",
+        "ai_score", "t1_score", "t2_score",
         "organisation_id", "job_id", "candidate_id",
     }
 

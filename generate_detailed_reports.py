@@ -125,8 +125,8 @@ def update_airtable_report(
 
         at.update_record(record_id, {
             "ai_detailed_json": json.dumps(detailed_json, ensure_ascii=False),
-            "tier2_score": report_score,
-            "tier2_status": recommendation,
+            "t2_score": report_score,
+            "t2_status": recommendation,
             "ai_summary": detailed_json.get("ai_summary") or "",
             "ai_strengths": detailed_json.get("ai_strengths") or "",
             "ai_gaps": detailed_json.get("ai_gaps") or "",
@@ -1077,7 +1077,7 @@ def main() -> int:
     # Prefer tier1_score (set by python8.py Tier 1 pass); fall back to ai_score for legacy CSVs
     high_scorers = [
         c for c in candidates
-        if float(c.get("tier1_score") or c.get("ai_score") or 0) >= min_score
+        if float(c.get("t1_score") or c.get("ai_score") or 0) >= min_score
     ]
     
     generated_count = 0
@@ -1137,19 +1137,9 @@ def main() -> int:
                     resume_text = cv_text_csv
                     print(f"  Using cv_text from CSV (no local resume file)")
 
-            # 3. Download fresh from resume_file URL (CSV or Airtable record)
+            # 3. Download fresh from _cv_url (internal CSV column)
             if not resume_text:
-                resume_url = (candidate.get("resume_file") or "").strip()
-                if not resume_url:
-                    # Try to get URL from Airtable record
-                    try:
-                        at_fallback = AirtableClient()
-                        formula = f"AND({{job_id}}={job_id}, {{candidate_id}}={candidate_id})"
-                        recs = at_fallback.get_records_by_formula(formula)
-                        if recs:
-                            resume_url = (recs[0]["fields"].get("resume_file") or "").strip()
-                    except Exception as _e:
-                        print(f"  [WARN] Airtable URL lookup failed: {_e}")
+                resume_url = (candidate.get("_cv_url") or "").strip()
                 if resume_url:
                     print(f"  Downloading resume from URL...")
                     resume_text = _download_resume(resume_url, str(candidate_id))

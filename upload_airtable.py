@@ -46,7 +46,7 @@ INPUT_FILE = os.getenv(
 
 UNIQUE_KEY_FIELD = Config.AIRTABLE_UNIQUE_KEY_FIELD   # "match_id"
 CV_ATTACHMENT_FIELD = Config.AIRTABLE_CV_FIELD         # "CV"
-RESUME_URL_FIELD = "resume_file"
+RESUME_URL_FIELD = "_cv_url"
 RESUME_LOCAL_PATH_FIELD = "resume_local_path"
 
 CREATE_MISSING = True
@@ -261,7 +261,8 @@ def main() -> int:
                 new_ck = str(fields.get("cache_key") or "")
                 if old_ck and new_ck and old_ck != new_ck:
                     fields["ai_report_html"] = []
-                    print(f"  [INFO] Rubric changed for {key} — clearing stale report")
+                    fields["traffic_rpt"] = []
+                    print(f"  [INFO] Rubric changed for {key} — clearing stale HTML report and .docx")
                 to_update.append({"id": existing[key], "fields": fields})
         else:
             if CREATE_MISSING:
