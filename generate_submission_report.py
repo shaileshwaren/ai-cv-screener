@@ -224,14 +224,23 @@ def _add_run(
 
 
 def _add_emoji_run(para, text: str, size_pt: float = 12.0):
-    """Add an emoji run without overriding font name or colour.
+    """Add an emoji run using Segoe UI Emoji so coloured rendering works.
 
-    Deliberately omits font.name and font.color so Word uses its built-in
-    emoji font (Segoe UI Emoji on Windows) and renders the emoji in their
-    natural colours (green ✅, yellow ⚠️, red ❌).
+    Characters like ⚠ (U+26A0) default to *text* presentation and only become
+    coloured emoji when the variation selector U+FE0F is present AND the run is
+    rendered with an emoji-capable font.  Without an explicit font Word falls
+    back to Calibri which ignores U+FE0F, giving a monochrome glyph.  Setting
+    all four rFonts slots to Segoe UI Emoji (the standard Windows emoji font)
+    fixes this for every emoji used in the report.
     """
     run = para.add_run(text)
     run.font.size = Pt(size_pt)
+    # Inject <w:rFonts> for all four slots so Word uses Segoe UI Emoji
+    rPr = run._r.get_or_add_rPr()
+    rFonts = OxmlElement("w:rFonts")
+    for attr in ("w:ascii", "w:hAnsi", "w:cs", "w:eastAsia"):
+        rFonts.set(qn(attr), "Segoe UI Emoji")
+    rPr.insert(0, rFonts)
     return run
 
 
