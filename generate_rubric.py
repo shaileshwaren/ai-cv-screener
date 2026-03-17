@@ -1254,8 +1254,28 @@ def main():
 
     # ── 5. Upsert Job record (creates it if missing, updates word_cnt) ────
     org = job_data.get("organization")
-    client_id   = int(org) if isinstance(org, (int, float)) else None
-    client_name = job_data.get("organisation_name", "")
+    client_id: int | None = None
+    client_name = ""
+
+    if isinstance(org, dict):
+        if isinstance(org.get("id"), int):
+            client_id = org["id"]
+        if org.get("name"):
+            client_name = str(org["name"])
+    elif isinstance(org, (int, float)):
+        client_id = int(org)
+        try:
+            headers = {"Authorization": f"Token {MANATAL_API_KEY}"}
+            r = requests.get(f"{MANATAL_BASE_URL}/organizations/{client_id}/", headers=headers, timeout=30)
+            if r.ok:
+                org_obj = r.json()
+                if isinstance(org_obj, dict) and org_obj.get("name"):
+                    client_name = str(org_obj["name"])
+        except Exception:
+            pass
+
+    if not client_name:
+        client_name = job_data.get("organization_name") or job_data.get("client_name") or ""
     at.upsert_job(
         job_id=job_id,
         job_name=job_data.get("position_name", ""),
