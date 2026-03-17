@@ -129,7 +129,7 @@ class Config:
     }
 
     NUMBER_FIELDS = {
-        "ai_score", "t1_score", "t2_score",
+        "t1_score", "t2_score",
         "organisation_id", "job_id", "candidate_id",
     }
 
