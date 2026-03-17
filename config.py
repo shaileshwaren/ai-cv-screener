@@ -93,7 +93,6 @@ class Config:
     # Field Mappings (CSV → Airtable)
     # =========================
     FIELD_MAP = {
-        "match_id":          "match_id",
         "organisation_id":   "organisation_id",
         "organisation_name": "organisation_name",
         "job_id":            "job_id",
@@ -116,7 +115,6 @@ class Config:
 
     # Field type definitions for upload normalisation
     TEXT_FIELDS = {
-        "match_id",
         "organisation_name",
         "job_name",
         "created_at", "updated_at",
