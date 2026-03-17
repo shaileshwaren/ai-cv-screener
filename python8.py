@@ -591,10 +591,9 @@ def main() -> int:
                 "job_pipeline_stage": {"name": Config.TARGET_STAGE_NAME},
                 "_cv_text_override": cv_stored,   # used below instead of downloading resume
                 "candidate": {
-                    "id":           int(cid),
-                    "full_name":    f.get("full_name", ""),
-                    "email":        f.get("email", ""),
-                    "resume_file":  f.get("resume_file", ""),
+                    "id":        int(cid),
+                    "full_name": f.get("full_name", ""),
+                    "email":     f.get("email", ""),
                 },
             })
 

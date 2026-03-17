@@ -1213,7 +1213,7 @@ def main():
     # If different → JD has changed → delete stale rubric so it gets regenerated.
     job_record_id = at.get_job_record_id(job_id)
     if job_record_id:
-        from airtable_client import Config as _Cfg
+        from config import Config as _Cfg
         job_client = AirtableClient(
             token=at.token, base_id=at.base_id, table_id=_Cfg.AIRTABLE_JOB_TABLE_ID
         )

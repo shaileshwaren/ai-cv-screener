@@ -94,7 +94,10 @@ def build_cv_attachment(row: Dict[str, Any]) -> Optional[List[Dict[str, str]]]:
     if not url or not is_http_url(url):
         return None
     name = str(row.get("full_name") or "candidate").strip() or "candidate"
-    fn = f"{safe_filename(name)}_CV.pdf"
+    # Preserve the real file extension from the URL (strip query string first)
+    url_path = url.split("?")[0]
+    ext = Path(url_path).suffix.lower() or ".pdf"
+    fn = f"{safe_filename(name)}_CV{ext}"
     return [{"url": url, "filename": fn}]
 
 
@@ -287,13 +290,8 @@ def main() -> int:
     # Upload local CV files (offline mode only — online mode uses URL attachments)
     print("Processing CV attachments...")
 
-    # Check if all CVs are URL-based (online mode) — skip the expensive full-table
-    # fetch in that case, since the URL attachment was already set during create/update.
-    all_url_based = all(
-        is_http_url(item.get("_resume_url") or "")
-        for item in prepared
-        if item.get("_resume_url")
-    )
+    # Only fetch records for local-file uploads (offline mode).
+    # In online mode all CVs are URL-based and already attached during create/update.
     has_local_cvs = any(
         item.get("_resume_local_path") and not is_http_url(item.get("_resume_url") or "")
         for item in prepared
