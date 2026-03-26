@@ -7,10 +7,147 @@ Centralized configuration for the Airtable recruitment pipeline.
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
+
 from dotenv import load_dotenv
 
 load_dotenv()
+
+import requests
+
+
+def _safe_int_for_threshold(val: Any) -> Optional[int]:
+    """Parse an integer threshold from Airtable or env; None if missing/invalid."""
+    if val is None:
+        return None
+    if isinstance(val, bool):
+        return int(val)
+    if isinstance(val, int):
+        return val
+    if isinstance(val, float):
+        return int(val)
+    s = str(val).strip()
+    if not s:
+        return None
+    try:
+        return int(float(s))
+    except ValueError:
+        m = re.search(r"-?\d+", s)
+        return int(m.group()) if m else None
+
+
+def _safe_float_for_floor(val: Any) -> Optional[float]:
+    if val is None:
+        return None
+    if isinstance(val, (int, float)):
+        return float(val)
+    s = str(val).strip()
+    if not s:
+        return None
+    try:
+        return float(s)
+    except ValueError:
+        m = re.search(r"-?\d*\.?\d+", s)
+        return float(m.group()) if m else None
+
+
+def _fetch_airtable_pipeline_settings_fields() -> Dict[str, Any]:
+    """GET pipeline settings row where {Recordnum}=1; empty dict if unavailable."""
+    table = os.getenv("AIRTABLE_PIPELINE_SETTINGS_TABLE_ID", "").strip()
+    base = os.getenv("AIRTABLE_BASE_ID", "").strip()
+    token = os.getenv("AIRTABLE_TOKEN", "").strip()
+    if not table or not base or not token:
+        return {}
+
+    url = f"https://api.airtable.com/v0/{base}/{table}"
+    try:
+        r = requests.get(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+            params={"filterByFormula": "{Recordnum}=1", "maxRecords": 1},
+            timeout=30,
+        )
+        if not r.ok:
+            print(f"[WARN] Pipeline settings Airtable GET failed: {r.status_code}\n{r.text[:200]}")
+            return {}
+        data = r.json()
+        recs = data.get("records") or []
+        if not recs:
+            return {}
+        return recs[0].get("fields") or {}
+    except Exception as e:
+        print(f"[WARN] Pipeline settings fetch error: {e}")
+        return {}
+
+
+def _env_int_pass(name: str, default: int) -> int:
+    v = os.getenv(name, "").strip()
+    if not v:
+        return default
+    try:
+        return int(v)
+    except ValueError:
+        m = re.search(r"-?\d+", v)
+        return int(m.group()) if m else default
+
+
+def _env_tier2_pass(t1: int) -> int:
+    """TIER2_PASS_THRESHOLD when set and numeric; otherwise same as Tier 1."""
+    v = os.getenv("TIER2_PASS_THRESHOLD", "").strip()
+    if not v:
+        return t1
+    if not any(c.isdigit() for c in v):
+        return t1
+    try:
+        return int(v)
+    except ValueError:
+        m = re.search(r"-?\d+", v)
+        return int(m.group()) if m else t1
+
+
+def _env_floor_default() -> float:
+    # Prefer clearer key; keep legacy env name for compatibility.
+    v = os.getenv("MUST_HAVE_FLOOR_RULE", os.getenv("TIER2_MUST_HAVE_FLOOR", "2.0")).strip()
+    if not v:
+        return 2.0
+    try:
+        return float(v)
+    except ValueError:
+        m = re.search(r"-?\d*\.?\d+", v)
+        return float(m.group()) if m else 2.0
+
+
+def _merge_pipeline_thresholds() -> Tuple[int, int, float]:
+    # Prefer the clearer key; fall back to legacy PASS_THRESHOLD for compatibility.
+    t1 = _env_int_pass("TIER1_PASS_THRESHOLD", _env_int_pass("PASS_THRESHOLD", 60))
+    t2 = _env_tier2_pass(t1)
+    floor = _env_floor_default()
+    fields = _fetch_airtable_pipeline_settings_fields()
+
+    for key, target in (
+        ("tier1_pass_threshold", "t1"),
+        ("tier2_pass_threshold", "t2"),
+    ):
+        if key not in fields:
+            continue
+        parsed = _safe_int_for_threshold(fields[key])
+        if parsed is not None and parsed != 0:
+            if target == "t1":
+                t1 = parsed
+            else:
+                t2 = parsed
+
+    if "tier2_must_have_floor" in fields:
+        fp = _safe_float_for_floor(fields["tier2_must_have_floor"])
+        if fp is not None and fp != 0.0:
+            floor = fp
+
+    return t1, t2, floor
+
+
+_T1, _T2, _FLOOR = _merge_pipeline_thresholds()
 
 
 class Config:
@@ -41,6 +178,7 @@ class Config:
     AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID", "app285aKVVr7JYL43").strip()
     AIRTABLE_TABLE_ID = os.getenv("AIRTABLE_CANDIDATE_TABLE_ID", "tblJ2OkvaWI7vi0vI").strip()
     AIRTABLE_JOB_TABLE_ID = os.getenv("AIRTABLE_JOB_TABLE_ID", "tblCV6w4fGex9VgzK").strip()
+    AIRTABLE_PIPELINE_SETTINGS_TABLE_ID = os.getenv("AIRTABLE_PIPELINE_SETTINGS_TABLE_ID", "").strip()
 
     # Airtable field names
     AIRTABLE_CV_FIELD = "CV"
@@ -69,6 +207,10 @@ class Config:
     TARGET_STAGE_AFTER = os.getenv("TARGET_STAGE_AFTER", "AI Screened")
     TARGET_STAGE_FAIL  = os.getenv("TARGET_STAGE_FAIL",  "Processed")
 
+    # Skip matches with dropped_at set (still listed under a stage in some Manatal views)
+    _edm = os.getenv("EXCLUDE_DROPPED_MATCHES", "true").strip().lower()
+    EXCLUDE_DROPPED_MATCHES = _edm in ("1", "true", "yes", "on")
+
     DOWNLOAD_RESUMES = True
     SKIP_ALREADY_SCORED = True
     FORCE_RESCORE = False
@@ -84,10 +226,14 @@ class Config:
     MAX_RESUME_CHARS_INFO_EXTRACTION = 15000
 
     # =========================
-    # Scoring Settings
+    # Scoring Settings (Tier 1 / Tier 2 — merged from env + optional Airtable row)
     # =========================
-    PASS_THRESHOLD = int(os.getenv("PASS_THRESHOLD", "60"))
-    MIN_SCORE_FOR_REPORT = PASS_THRESHOLD  # alias — always the same value
+    TIER1_PASS_THRESHOLD = _T1
+    TIER2_PASS_THRESHOLD = _T2
+    MUST_HAVE_FLOOR_RULE = _FLOOR
+    TIER2_MUST_HAVE_FLOOR = MUST_HAVE_FLOOR_RULE  # legacy alias
+    PASS_THRESHOLD = TIER1_PASS_THRESHOLD
+    MIN_SCORE_FOR_REPORT = TIER1_PASS_THRESHOLD
 
     # =========================
     # Field Mappings (CSV → Airtable)

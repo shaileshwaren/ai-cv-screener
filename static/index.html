@@ -200,6 +200,218 @@
     .status-bar.success  { background: #c6f6d5; color: #276749; }
     .status-bar.failed   { background: #fed7d7; color: #c53030; }
 
+    /* ── Recruiter pipeline panel ── */
+    .pipeline-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.9rem;
+      flex-wrap: wrap;
+    }
+    .pipeline-title {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #1a202c;
+    }
+    .toggle-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.82rem;
+      color: #4a5568;
+      cursor: pointer;
+      user-select: none;
+    }
+    .toggle-check input {
+      width: 14px;
+      height: 14px;
+      margin: 0;
+      accent-color: #805ad5;
+    }
+    .pipeline-hint {
+      margin: 0;
+      font-size: 0.85rem;
+      color: #718096;
+    }
+    .pipeline-meta {
+      margin: 0 0 0.9rem;
+      font-size: 0.87rem;
+      color: #4a5568;
+    }
+    .job-tracker {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+    .job-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.28rem 0.6rem;
+      border-radius: 999px;
+      border: 1px solid #e2e8f0;
+      background: #fff;
+      font-size: 0.76rem;
+      color: #4a5568;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .job-chip.selected {
+      box-shadow: 0 0 0 2px rgba(128,90,213,.25);
+      border-color: #805ad5;
+    }
+    .job-chip-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      display: inline-block;
+      border: 1px solid transparent;
+      flex-shrink: 0;
+    }
+    .chip-pending { background: #edf2f7; color: #718096; border-color: #e2e8f0; }
+    .chip-running { background: #feebc8; color: #8b5e10; border-color: #f6ad55; }
+    .chip-complete { background: #c6f6d5; color: #276749; border-color: #9ae6b4; }
+    .chip-failed { background: #fed7d7; color: #c53030; border-color: #feb2b2; }
+
+    .pipeline-legend {
+      display: flex;
+      gap: 0.9rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.9rem;
+    }
+    .pipeline-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.74rem;
+      color: #718096;
+    }
+    .pipeline-step-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin-bottom: 0.35rem;
+    }
+    .pipeline-step-left {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 64px;
+    }
+    .pipeline-light {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 1px solid transparent;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    .light-pending { background: #d3d1c7; border-color: #b4b2a9; }
+    .light-running { background: #f6ad55; border-color: #dd6b20; }
+    .light-done    { background: #68d391; border-color: #38a169; }
+    .light-warn    { background: #f6ad55; border-color: #dd6b20; }
+    .light-error   { background: #fc8181; border-color: #e53e3e; }
+    .light-skipped { background: #e2e8f0; border-color: #cbd5e0; }
+    .pipeline-connector {
+      width: 2px;
+      flex: 1;
+      background: #e2e8f0;
+      margin-top: 4px;
+      border-radius: 2px;
+    }
+    .pipeline-step-body { flex: 1; padding-bottom: 0.5rem; }
+    .pipeline-step-name {
+      margin: 0;
+      font-size: 0.86rem;
+      font-weight: 700;
+      color: #1a202c;
+    }
+    .pipeline-step-desc {
+      margin: 2px 0;
+      font-size: 0.78rem;
+      color: #718096;
+    }
+    .pipeline-step-msg {
+      margin: 0;
+      font-size: 0.78rem;
+      color: #4a5568;
+    }
+    .pipeline-step-msg.warn-text {
+      color: #dd6b20; /* yellow/orange */
+      font-weight: 600;
+    }
+    .pipeline-step-warn-icon {
+      width: 14px;
+      height: 14px;
+      margin-right: 6px;
+      vertical-align: -2px;
+      display: inline-block;
+    }
+    .pipeline-notice {
+      margin-top: 0.9rem;
+      border-left: 3px solid #f6ad55;
+      background: #fffaf0;
+      border-radius: 0 6px 6px 0;
+      padding: 0.6rem 0.75rem;
+    }
+    .pipeline-notice h4 {
+      margin: 0 0 0.2rem;
+      font-size: 0.8rem;
+      color: #744210;
+    }
+    .pipeline-notice p {
+      margin: 0;
+      font-size: 0.78rem;
+      color: #744210;
+      line-height: 1.45;
+    }
+
+    /* Inline recruiter reason summary (below pipeline progress) */
+    .reason-box {
+      margin-top: 0.9rem;
+      width: 100%;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+      padding: 0.75rem 0.9rem;
+    }
+    .reason-box h4 {
+      margin: 0 0 0.35rem;
+      font-size: 0.9rem;
+      font-weight: 800;
+      color: #1a202c;
+    }
+    .reason-box ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+    .reason-box li {
+      font-size: 0.8rem;
+      color: #4a5568;
+      line-height: 1.35;
+      margin: 0.2rem 0;
+    }
+    .reason-more-btn {
+      margin-top: 0.5rem;
+      border: 1px solid #d2d6dc;
+      background: #fff;
+      color: #4a5568;
+      font-size: 0.76rem;
+      font-weight: 600;
+      border-radius: 6px;
+      padding: 0.25rem 0.55rem;
+      cursor: pointer;
+    }
+    .reason-details {
+      margin-top: 0.55rem;
+      padding-top: 0.5rem;
+      border-top: 1px dashed #e2e8f0;
+    }
+
     /* ── Terminal ── */
     .terminal-label {
       font-size: 0.68rem;
@@ -351,14 +563,14 @@
     <section class="card">
       <h2>Run AI Candidate Scoring</h2>
 
-      <!-- 1. PIPELINE STAGE + TIER 2 CUTOFF -->
+      <!-- 1. PIPELINE STAGE + TIER 1 PASS THRESHOLD -->
       <div class="config-row">
         <div class="field field-stage">
           <label>Pipeline Stage</label>
           <input type="text" x-model="stageName" placeholder="New Candidates" readonly style="background:#f0f0f0;cursor:not-allowed;color:#666;" />
         </div>
         <div class="field field-cutoff">
-          <label>Tier 2 Cutoff (%)</label>
+          <label>Tier 1 Pass Threshold (%)</label>
           <input type="number" min="0" max="100" x-model.number="passCutoff" placeholder="Default: 60" />
         </div>
       </div>
@@ -386,7 +598,7 @@
       </div>
 
       <!-- 3. + Add job -->
-      <button class="btn-add" @click="addJob()">+ Add job</button>
+      <button class="btn-add" @click="addJob()">+ Add more job ids</button>
 
       <!-- 4. Run AI Scoring -->
       <div>
@@ -422,25 +634,124 @@
       x-text="statusMsg"
     ></div>
 
-    <!-- ── TERMINAL ── -->
+    <!-- ── RECRUITER PIPELINE EXPERIENCE / TERMINAL TOGGLE ── -->
     <section class="card">
-      <div class="terminal-label">Terminal</div>
-      <div class="terminal" x-ref="terminal">
-        <template x-if="logs.length === 0">
-          <span class="t-dim">No output yet. Run AI Scoring to see pipeline logs.</span>
-        </template>
-        <template x-for="(line, i) in logs" :key="i">
-          <div :class="lineClass(line)" x-text="line"></div>
-        </template>
-        <div x-ref="logBottom"></div>
+      <div class="pipeline-toggle-row">
+        <h3 class="pipeline-title">Pipeline Progress</h3>
+        <label class="toggle-check">
+          <input type="checkbox" x-model="showTechnicalLog" />
+          Show technical log
+        </label>
       </div>
+
+      <template x-if="!showTechnicalLog">
+        <div>
+          <template x-if="!pipelineUiActive">
+            <p class="pipeline-hint">Progress will appear here once you start a run.</p>
+          </template>
+
+          <template x-if="pipelineUiActive">
+            <div>
+              <p class="pipeline-meta" x-text="pipelineMeta || 'Running pipeline…'"></p>
+
+              <div class="job-tracker" x-show="jobRunTracker.length > 0">
+                <template x-for="(job, i) in jobRunTracker" :key="job.jobId + '-' + i">
+                  <button
+                    type="button"
+                    class="job-chip"
+                    :class="[
+                      'chip-' + job.status,
+                      (selectedJobTabId === job.jobId) ? 'selected' : ''
+                    ]"
+                    @click="selectJobTab(job.jobId)"
+                  >
+                    <span class="job-chip-dot" :class="'light-' + (job.status === 'complete' ? 'done' : job.status)"></span>
+                    <span x-text="job.jobId"></span>
+                    <span x-text="job.status === 'complete' ? 'done' : job.status"></span>
+                  </button>
+                </template>
+              </div>
+
+              <div class="pipeline-legend">
+                <span class="pipeline-legend-item"><span class="job-chip-dot light-pending"></span>Not started</span>
+                <span class="pipeline-legend-item"><span class="job-chip-dot light-running"></span>In progress</span>
+                <span class="pipeline-legend-item"><span class="job-chip-dot light-done"></span>Done</span>
+                <span class="pipeline-legend-item"><span class="job-chip-dot light-error"></span>Failed</span>
+                <span class="pipeline-legend-item"><span class="job-chip-dot light-skipped"></span>Skipped</span>
+              </div>
+
+              <template x-for="(step, i) in pipelineSteps" :key="step.key">
+                <div class="pipeline-step-row">
+                  <div class="pipeline-step-left">
+                    <div class="pipeline-light" :class="'light-' + step.status"></div>
+                    <div class="pipeline-connector" x-show="i < pipelineSteps.length - 1"></div>
+                  </div>
+                  <div class="pipeline-step-body">
+                    <p class="pipeline-step-name" x-text="`Step ${i + 1} — ${step.name}`"></p>
+                    <p class="pipeline-step-desc" x-text="step.desc"></p>
+                    <p class="pipeline-step-msg" :class="{'warn-text': step.warning === true}">
+                      <template x-if="step.warning === true">
+                        <svg class="pipeline-step-warn-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M12 9v4" stroke="#dd6b20" stroke-width="2" stroke-linecap="round"/>
+                          <path d="M12 17h.01" stroke="#dd6b20" stroke-width="3" stroke-linecap="round"/>
+                          <path d="M10.29 4.86l-7.16 12.4A1.5 1.5 0 0 0 4.36 19.5h15.28a1.5 1.5 0 0 0 1.23-2.24l-7.16-12.4a1.5 1.5 0 0 0-2.46 0Z" stroke="#dd6b20" stroke-width="1.5"/>
+                        </svg>
+                      </template>
+                      <span x-text="step.message"></span>
+                    </p>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Inline reason summary (below pipeline progress) -->
+              <div class="reason-box" x-show="reasonLines.length > 0">
+                <h4>Needs Attention</h4>
+                <ul>
+                  <template x-for="(line, i) in reasonLines" :key="i">
+                    <li x-text="line"></li>
+                  </template>
+                </ul>
+                <button
+                  type="button"
+                  class="reason-more-btn"
+                  x-show="reasonDetailLines.length > 0"
+                  @click="reasonDetailsExpanded = !reasonDetailsExpanded"
+                  x-text="reasonDetailsExpanded ? 'Hide details' : 'View more'"
+                ></button>
+                <div class="reason-details" x-show="reasonDetailsExpanded && reasonDetailLines.length > 0">
+                  <ul>
+                    <template x-for="(line, i) in reasonDetailLines" :key="'detail-' + i">
+                      <li x-text="line"></li>
+                    </template>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <template x-if="showTechnicalLog">
+        <div>
+          <div class="terminal-label">Terminal</div>
+          <div class="terminal" x-ref="terminal">
+            <template x-if="logs.length === 0">
+              <span class="t-dim">No output yet. Run AI Scoring to see pipeline logs.</span>
+            </template>
+            <template x-for="(line, i) in logs" :key="i">
+              <div :class="lineClass(line)" x-text="line"></div>
+            </template>
+            <div x-ref="logBottom"></div>
+          </div>
+        </div>
+      </template>
     </section>
 
     <!-- ── CANDIDATE RESULTS (Tier 1) ── -->
     <template x-if="selectedJobId && (candidateMap[selectedJobId] || []).length > 0">
       <section class="card">
         <div class="results-header">
-          <h2>First Pass Results</h2>
+          <h2>Tier 1 Results</h2>
           <span class="meta-text" x-text="(candidateMap[selectedJobId] || []).length + ' candidates · sorted by score'"></span>
         </div>
         <div class="table-wrap">
@@ -507,7 +818,7 @@
     <template x-if="reportCandidates.length > 0">
       <section class="card">
         <div class="results-header">
-          <h2>Final Results</h2>
+          <h2>Final (T2) Results</h2>
           <span class="badge-pill">High-scoring &amp; rescored</span>
           <span class="meta-text" x-text="reportCandidates.length + ' candidates with reports'"></span>
         </div>
@@ -577,6 +888,25 @@
 
         // Logs
         logs: [],
+        showTechnicalLog: false,
+
+        // Recruiter pipeline UI
+        pipelineUiActive: false,
+        pipelineMeta: '',
+        pipelineNotice: '',
+        currentJobId: null,
+        currentJobIndex: -1,
+        selectedJobTabId: null,
+        jobRunTracker: [],
+        pipelineSteps: [],
+        stepsByJobId: {},        // { [jobId]: [{key,name,desc,status,message}, ...] }
+        missingCvByJobId: {},   // { [jobId]: [candidateName, ...] }
+        extractionFailByJobId: {}, // { [jobId]: [candidateName, ...] }
+        errorByJobId: {},       // { [jobId]: string }
+        reasonLines: [],
+        reasonDetailLines: [],
+        reasonDetailsExpanded: false,
+        metaByJobId: {},
 
         // Results
         selectedJobId: null,
@@ -594,6 +924,7 @@
             const d = await fetch('/api/defaults').then(r => r.json());
             if (d.pass_threshold != null) this.passCutoff = d.pass_threshold;
           } catch (_) {}
+          this.resetPipelineSteps();
         },
 
         // ── Job management ──
@@ -601,15 +932,356 @@
         removeJob(i)    { if (this.jobIds.length > 1) this.jobIds.splice(i, 1); },
 
         // ── Pipeline run ──
+        canonicalSteps() {
+          return [
+            {
+              key: 'rubric',
+              name: 'Rubric generation',
+              desc: 'Analysing job description and building scoring criteria',
+            },
+            {
+              key: 'scoring',
+              name: 'AI scoring',
+              desc: 'Reviewing each candidate CV against the rubric',
+            },
+            {
+              key: 'upload',
+              name: 'Saving results',
+              desc: 'Uploading scores and records to Airtable',
+            },
+            {
+              key: 'reports',
+              name: 'Detailed reports',
+              desc: 'Generating AI-powered breakdown reports',
+            },
+            {
+              key: 'submission',
+              name: 'Submission documents',
+              desc: 'Creating recruiter submission documents',
+            },
+          ];
+        },
+
+        resetPipelineStepsForJob(jobId) {
+          const steps = this.canonicalSteps().map((s) => ({
+            ...s,
+            status: 'pending',
+            message: 'Waiting…',
+            warning: false,
+          }));
+          this.stepsByJobId = { ...this.stepsByJobId, [jobId]: steps };
+          if (this.selectedJobTabId === jobId) this.pipelineSteps = steps;
+        },
+
+        resetPipelineSteps() {
+          // Legacy wrapper (used only during idle / init).
+          if (!this.selectedJobTabId) return;
+          this.resetPipelineStepsForJob(this.selectedJobTabId);
+        },
+
+        initializeRunTracker(validIds) {
+          this.jobRunTracker = validIds.map((id) => ({
+            jobId: id,
+            status: 'pending',
+          }));
+          // Create per-job step state so we can later switch tabs and view prior jobs.
+          const stepsByJobId = {};
+          validIds.forEach((jid) => {
+            stepsByJobId[jid] = this.canonicalSteps().map((s) => ({
+              ...s,
+              status: 'pending',
+              message: 'Waiting…',
+              warning: false,
+            }));
+          });
+          this.stepsByJobId = stepsByJobId;
+          this.selectedJobTabId = validIds[0] || null;
+          this.pipelineSteps = this.stepsByJobId[this.selectedJobTabId] || [];
+
+          this.currentJobId = null;
+          this.currentJobIndex = -1;
+          this.pipelineNotice = '';
+          this.pipelineMeta = '';
+          this.missingCvByJobId = {};
+          this.extractionFailByJobId = {};
+          this.errorByJobId = {};
+          this.reasonLines = [];
+          this.reasonDetailLines = [];
+          this.reasonDetailsExpanded = false;
+          this.metaByJobId = {};
+        },
+
+        startTrackerJob(jobId, idx, total) {
+          this.currentJobId = jobId;
+          this.currentJobIndex = idx;
+          this.selectedJobTabId = jobId;
+          this.resetPipelineStepsForJob(jobId);
+          this.pipelineMeta = `Processing job ${jobId} (${idx} of ${total})`;
+          this.metaByJobId = { ...this.metaByJobId, [jobId]: this.pipelineMeta };
+          this.jobRunTracker = this.jobRunTracker.map((j) =>
+            j.jobId === jobId
+              ? { ...j, status: 'running' }
+              : (j.status === 'running' ? { ...j, status: 'complete' } : j)
+          );
+          this.updateReasonLinesForSelectedJob();
+        },
+
+        mapStepDescription(desc) {
+          const d = (desc || '').toLowerCase();
+          // Prioritize specific phrases first to avoid mis-mapping:
+          // Step 2 description contains the word "rubric", but it is still "AI scoring".
+          if (d.includes('ai scoring') || d.includes('score against rubric') || d.includes('manatal')) return 1;
+          if (d.includes('upload to airtable')) return 2;
+          if (d.includes('detailed report')) return 3;
+          if (d.includes('submission') || d.includes('.docx')) return 4;
+          if (d.includes('rubric')) return 0;
+          return -1;
+        },
+
+        currentRunningStep(jobId = null) {
+          const jid = jobId ?? this.currentJobId ?? this.selectedJobTabId;
+          const steps = this.stepsByJobId[jid] || [];
+          return steps.findIndex((s) => s.status === 'running');
+        },
+
+        markPendingAsSkipped(jobId = null) {
+          const jid = jobId ?? this.currentJobId ?? this.selectedJobTabId;
+          const steps = this.stepsByJobId[jid] || [];
+          const next = steps.map((s) =>
+            s.status === 'pending' ? { ...s, status: 'skipped', message: 'Skipped for this run', warning: false } : s
+          );
+          this.stepsByJobId[jid] = next;
+          if (this.selectedJobTabId === jid) this.pipelineSteps = next;
+          this.updateReasonLinesForSelectedJob();
+        },
+
+        selectJobTab(jobId) {
+          this.selectedJobTabId = jobId;
+          this.pipelineSteps = this.stepsByJobId[jobId] || [];
+          this.pipelineMeta = this.metaByJobId[jobId] || '';
+          this.reasonDetailsExpanded = false;
+          this.updateReasonLinesForSelectedJob();
+        },
+
+        setCurrentJobStatus(status) {
+          if (!this.currentJobId) return;
+          this.jobRunTracker = this.jobRunTracker.map((j) =>
+            j.jobId === this.currentJobId ? { ...j, status } : j
+          );
+        },
+
+        updateReasonLinesForJob(jobId) {
+          const steps = this.stepsByJobId[jobId] || [];
+          const missingFromLogs = (this.missingCvByJobId[jobId] || []).slice();
+          const extraction = (this.extractionFailByJobId[jobId] || []).slice();
+          const err = this.errorByJobId[jobId];
+
+          // Also infer missing CVs from loaded candidates, so the UI works even if
+          // the backend skipped scoring logs due to caching.
+          const candidates = this.candidateMap[jobId] || [];
+          const missingFromCandidates = candidates
+            .filter((c) => !c.cv_url)
+            .map((c) => (c.full_name || c.candidate_name || c.name || '').trim())
+            .filter(Boolean);
+
+          const missing = Array.from(new Set([...(missingFromLogs || []), ...missingFromCandidates]));
+          const unreadable = Array.from(new Set(extraction || []));
+          const resumeIssueNames = Array.from(new Set([...(missing || []), ...(unreadable || [])]));
+
+          const lines = [];
+          const detailLines = [];
+
+          // Recruiter-friendly summaries (non-technical wording).
+          if (resumeIssueNames.length > 0) {
+            lines.push(
+              `${resumeIssueNames.length} candidate${resumeIssueNames.length === 1 ? '' : 's'} could not be assessed.`
+            );
+            for (const name of resumeIssueNames) {
+              // Priority to avoid redundant/conflicting copy:
+              // if resume is missing, do not also show unreadable for same candidate.
+              if (missing.includes(name)) {
+                detailLines.push(`${name}: no resume was available`);
+              } else if (unreadable.includes(name)) {
+                detailLines.push(`${name}: resume file could not be read`);
+              }
+            }
+          }
+
+          // Step-level warn/error summaries
+          for (const st of steps) {
+            if (st.status === 'error') lines.push(`A pipeline step needs attention. Please review technical log if needed.`);
+            if (st.status === 'done' && st.warning === true && resumeIssueNames.length === 0) {
+              lines.push(`Scoring completed with warnings.`);
+            }
+          }
+
+          if (err) {
+            lines.push(`Run completed with an issue. You may retry or check technical log.`);
+          }
+
+          // Keep recruiter copy concise: hide technical/action directives.
+          const cleanedLines = lines
+            .map((l) => String(l || '').replace(/\s+/g, ' ').trim())
+            .filter((l) => l && !/^action:\s*/i.test(l));
+          const cleanedDetailLines = detailLines
+            .map((l) => String(l || '').replace(/\s+/g, ' ').trim())
+            .filter(Boolean);
+
+          // If nothing meaningful, hide box by clearing array.
+          this.reasonLines = cleanedLines;
+          this.reasonDetailLines = cleanedDetailLines;
+        },
+
+        updateReasonLinesForSelectedJob() {
+          if (!this.selectedJobTabId) {
+            this.reasonLines = [];
+            this.reasonDetailLines = [];
+            return;
+          }
+          this.updateReasonLinesForJob(this.selectedJobTabId);
+        },
+
+        onPipelineLogLine(line) {
+          let m = line.match(/Processing Job (\d+) of (\d+):\s*(\S+)/);
+          if (m) {
+            this.startTrackerJob(m[3], Number(m[1]), Number(m[2]));
+            return;
+          }
+
+          m = line.match(/\[STEP\s+(\d+)\/(\d+)\]\s+(.+)/);
+          if (m) {
+            const stepNum = Number(m[1]);
+            const totalSteps = Number(m[2]);
+            let mapped = -1;
+            if (totalSteps === 5 && stepNum >= 1 && stepNum <= 5) {
+              // When the backend prints /5, step number aligns with our 5-step canonical view.
+              mapped = stepNum - 1;
+            } else {
+              mapped = this.mapStepDescription(m[3].trim());
+            }
+            if (mapped >= 0) {
+              const jid = this.currentJobId;
+              const jobSteps = this.stepsByJobId[jid] || [];
+              const runningIdx = this.currentRunningStep(jid);
+              if (runningIdx >= 0 && runningIdx !== mapped) {
+                jobSteps[runningIdx].status = 'done';
+                jobSteps[runningIdx].message = jobSteps[runningIdx].warning
+                  ? 'Completed with warnings'
+                  : 'Completed successfully';
+              }
+              if (jobSteps[mapped]) {
+                jobSteps[mapped].status = 'running';
+                jobSteps[mapped].message = 'Running now…';
+              }
+              if (this.selectedJobTabId === jid) this.pipelineSteps = jobSteps;
+            }
+            return;
+          }
+
+          if (line.includes('completed successfully')) {
+            const jid = this.currentJobId;
+            const jobSteps = this.stepsByJobId[jid] || [];
+            const runningIdx = this.currentRunningStep(jid);
+            if (runningIdx >= 0) {
+              jobSteps[runningIdx].status = 'done';
+              jobSteps[runningIdx].message = jobSteps[runningIdx].warning
+                ? 'Completed with warnings'
+                : 'Completed successfully';
+            }
+            if (this.selectedJobTabId === jid) this.pipelineSteps = jobSteps;
+          }
+
+          // Tier 1 scoring sometimes marks missing CV as: "[no resume]" on the Scored line.
+          if (line.toLowerCase().includes('[no resume]')) {
+            const jid = this.currentJobId;
+            const jobSteps = this.stepsByJobId[jid] || [];
+            const runningIdx = this.currentRunningStep(jid);
+            if (runningIdx >= 0 && jobSteps[runningIdx].status !== 'error') {
+              jobSteps[runningIdx].warning = true;
+              jobSteps[runningIdx].message = 'Completed with warnings';
+              if (this.selectedJobTabId === jid) this.pipelineSteps = jobSteps;
+            }
+
+            const miss = line.match(/Scored:\s*\d+\/\d+\.\s*(.+?)\s*\(ID:\s*\d+\)/i);
+            if (miss && miss[1]) {
+              const name = miss[1].trim();
+              if (!this.missingCvByJobId[jid]) this.missingCvByJobId[jid] = [];
+              if (!this.missingCvByJobId[jid].includes(name)) this.missingCvByJobId[jid].push(name);
+            }
+            this.updateReasonLinesForSelectedJob();
+          }
+
+          if (line.includes('[WARN]')) {
+            const jid = this.currentJobId;
+            const jobSteps = this.stepsByJobId[jid] || [];
+            const runningIdx = this.currentRunningStep(jid);
+            if (runningIdx >= 0 && jobSteps[runningIdx].status !== 'error') {
+              jobSteps[runningIdx].warning = true;
+              jobSteps[runningIdx].message = 'Completed with warnings';
+            }
+
+            // Missing CV warnings (recruiter-friendly details)
+            const miss = line.match(/No resume found for (.+?) \(ID:\s*\d+\)/i);
+            if (miss && miss[1]) {
+              const name = miss[1].trim();
+              if (!this.missingCvByJobId[jid]) this.missingCvByJobId[jid] = [];
+              if (!this.missingCvByJobId[jid].includes(name)) this.missingCvByJobId[jid].push(name);
+            }
+
+            // PDF extraction failed for a candidate file like: 141864233-Ryan Yip.pdf
+            const pdfFail = line.match(/PDF extraction failed for\s+\d+\-(.+?)\.pdf/i);
+            if (pdfFail && pdfFail[1]) {
+              const name = pdfFail[1].trim();
+              if (!this.extractionFailByJobId[jid]) this.extractionFailByJobId[jid] = [];
+              if (!this.extractionFailByJobId[jid].includes(name)) this.extractionFailByJobId[jid].push(name);
+            }
+
+            this.updateReasonLinesForSelectedJob();
+          }
+
+          if (line.includes('ERROR: Job') || line.includes('[ERROR]')) {
+            const jid = this.currentJobId;
+            const jobSteps = this.stepsByJobId[jid] || [];
+            const runningIdx = this.currentRunningStep(jid);
+            if (runningIdx >= 0) {
+              jobSteps[runningIdx].status = 'error';
+              jobSteps[runningIdx].message = 'Failed — please review and retry';
+            }
+            this.setCurrentJobStatus('failed');
+            this.errorByJobId[jid] = 'This run encountered an issue. Please retry or enable the technical log for details.';
+            if (this.selectedJobTabId === jid) this.pipelineSteps = jobSteps;
+            this.updateReasonLinesForSelectedJob();
+          }
+
+          m = line.match(/Job (\S+) completed successfully/);
+          if (m) {
+            const jid = this.currentJobId;
+            const jobSteps = this.stepsByJobId[jid] || [];
+            const runningIdx = this.currentRunningStep(jid);
+            if (runningIdx >= 0) {
+              jobSteps[runningIdx].status = 'done';
+              jobSteps[runningIdx].message = jobSteps[runningIdx].warning
+                ? 'Completed with warnings'
+                : 'Completed successfully';
+            }
+            this.markPendingAsSkipped(jid);
+            this.setCurrentJobStatus('complete');
+            if (this.selectedJobTabId === jid) this.pipelineSteps = jobSteps;
+          }
+        },
+
         async runPipeline() {
           const validIds = this.jobIds.map(j => j.trim()).filter(Boolean);
           if (!validIds.length || this.isRunning) return;
 
           this.isRunning = true;
           this.logs = [];
+          this.showTechnicalLog = false;
+          this.pipelineUiActive = true;
+          this.initializeRunTracker(validIds);
           this.selectedJobId = null;
           this.candidateMap = {};
-          this.setStatus('Starting pipeline… watch the terminal below.', 'running');
+          this.setStatus('Starting pipeline… recruiter view is live.', 'running');
 
           try {
             const res = await fetch('/api/run', {
@@ -633,8 +1305,36 @@
               if (msg.startsWith('[PIPELINE_DONE:')) {
                 const ok = msg.includes(':success');
                 this.isRunning = false;
+                if (ok) {
+                  const jid = this.currentJobId;
+                  const jobSteps = this.stepsByJobId[jid] || [];
+                  const runningIdx = this.currentRunningStep(jid);
+                  if (runningIdx >= 0 && jobSteps[runningIdx]) {
+                    jobSteps[runningIdx].status = 'done';
+                    jobSteps[runningIdx].message = jobSteps[runningIdx].warning
+                      ? 'Completed with warnings'
+                      : 'Completed successfully';
+                  }
+                  this.markPendingAsSkipped(jid);
+                  this.setCurrentJobStatus('complete');
+                } else {
+                  const jid = this.currentJobId;
+                  const jobSteps = this.stepsByJobId[jid] || [];
+                  const runningIdx = this.currentRunningStep(jid);
+                  if (runningIdx >= 0 && jobSteps[runningIdx]) {
+                    jobSteps[runningIdx].status = 'error';
+                    jobSteps[runningIdx].message = 'Failed — please review and retry';
+                  }
+                  this.errorByJobId[jid] = this.errorByJobId[jid] || 'Run failed — enable technical log for details.';
+                  this.markPendingAsSkipped(jid);
+                  this.setCurrentJobStatus('failed');
+                  if (!this.pipelineNotice) {
+                    this.pipelineNotice = 'Run completed with issues. You can enable technical log for details.';
+                  }
+                }
+                this.updateReasonLinesForSelectedJob();
                 this.setStatus(
-                  ok ? 'Done. Results loaded below.' : 'Pipeline finished with errors. Check terminal.',
+                  ok ? 'Done. Results loaded below.' : 'Pipeline finished with errors.',
                   ok ? 'success' : 'failed'
                 );
                 es.close();
@@ -642,17 +1342,27 @@
                 return;
               }
               this.logs.push(msg);
+              this.onPipelineLogLine(msg);
               // Dynamically update status bar to reflect current pipeline step
               const parsed = this.parseStatus(msg);
               if (parsed) this.setStatus(parsed, 'running');
               this.$nextTick(() => {
-                this.$refs.logBottom?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                if (this.showTechnicalLog) {
+                  this.$refs.logBottom?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                }
               });
             };
             es.onerror = () => {
               if (this.isRunning) {
                 this.isRunning = false;
-                this.setStatus('Connection lost. Check server logs.', 'failed');
+                this.setCurrentJobStatus('failed');
+                if (this.currentJobId) {
+                  this.errorByJobId[this.currentJobId] =
+                    this.errorByJobId[this.currentJobId] || 'Connection was interrupted. Please retry or enable technical log for details.';
+                  this.updateReasonLinesForSelectedJob();
+                }
+                this.pipelineNotice = this.pipelineNotice || 'Connection was interrupted. Please retry or view technical log.';
+                this.setStatus('Connection lost.', 'failed');
               }
               es.close();
             };
@@ -717,6 +1427,7 @@
             this.candidateMap[jid] = d.candidates || [];
             // Trigger reactivity
             this.candidateMap = { ...this.candidateMap };
+            if (this.selectedJobTabId === jid) this.updateReasonLinesForSelectedJob();
           } catch {
             this.candidateMap[jid] = [];
           }

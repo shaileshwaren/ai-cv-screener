@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """generate_submission_report.py — .docx Submission Report Generator.
 
-For each candidate of a given job that has a t2_score (or t1_score) >= PASS_THRESHOLD
+For each candidate of a given job that has ``t1_score >= TIER1_PASS_THRESHOLD``,
+has Tier 2 data present (``ai_detailed_json``, ``t2_score``, or ``ai_report_html``),
 and does NOT yet have a `traffic_rpt` attachment, this script:
 
   1. Fetches the Airtable record (ai_detailed_json, ai_summary, full_name, job_name, cv_text)
@@ -32,6 +33,33 @@ from openai import OpenAI
 from airtable_client import AirtableClient
 from config import Config
 from utils import safe_filename
+
+
+def _has_tier2_data(fields: Dict[str, Any]) -> bool:
+    """True when any Tier 2 artefact exists for the candidate record."""
+    raw = fields.get("ai_detailed_json")
+    if isinstance(raw, str):
+        s = raw.strip()
+        if s and s not in ("{}", "null"):
+            return True
+    elif isinstance(raw, dict) and raw:
+        return True
+    if fields.get("t2_score") is not None:
+        return True
+    if fields.get("ai_report_html"):
+        return True
+    return False
+
+
+def _docx_recommendation(fields: Dict[str, Any], detailed_json: Dict[str, Any]) -> str:
+    """Prefer Airtable ``t2_status``; else ``detailed_json['recommendation']``."""
+    raw = (fields.get("t2_status") or "").strip().upper()
+    if raw in ("PASS", "FAIL", "REVIEW"):
+        return raw
+    rec = (detailed_json.get("recommendation") or "").strip().upper()
+    if rec in ("PASS", "FAIL", "REVIEW"):
+        return rec
+    return "FAIL"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -579,13 +607,13 @@ def main() -> int:
         return 2
 
     at = AirtableClient()
-    threshold = Config.PASS_THRESHOLD
+    tier1_threshold = Config.TIER1_PASS_THRESHOLD
 
     print(f"\n{'='*70}")
     print(f"SUBMISSION REPORT GENERATOR (.docx)")
     print(f"{'='*70}")
     print(f"Job ID:    {job_id}")
-    print(f"Threshold: {threshold}")
+    print(f"Tier 1 eligibility threshold: {tier1_threshold}")
     if force:
         print(f"Mode:      FORCE — existing traffic_rpt will be overwritten")
     print(f"{'='*70}\n")
@@ -609,9 +637,10 @@ def main() -> int:
 
     qualifying = [
         rec for rec in records
-        if float(rec["fields"].get("t2_score") or rec["fields"].get("t1_score") or 0) >= threshold
+        if float(rec["fields"].get("t1_score") or 0) >= tier1_threshold
+        and _has_tier2_data(rec["fields"])
     ]
-    print(f"Candidates scoring >= {threshold}: {len(qualifying)}")
+    print(f"Candidates with t1_score >= {tier1_threshold} and Tier 2 data: {len(qualifying)}")
 
     oa = OpenAI(api_key=Config.OPENAI_API_KEY)
     generated = 0
@@ -631,13 +660,14 @@ def main() -> int:
         print(f"\nProcessing: {full_name}")
 
         overall_score = float(fields.get("t2_score") or fields.get("t1_score") or 0)
-        recommendation = "PASS" if overall_score >= threshold else "FAIL"
 
         raw_json = fields.get("ai_detailed_json", "{}")
         try:
-            detailed_json: Dict[str, Any] = json.loads(raw_json) if isinstance(raw_json, str) else (raw_json or {})
+            detailed_json = json.loads(raw_json) if isinstance(raw_json, str) else (raw_json or {})
         except Exception:
             detailed_json = {}
+
+        recommendation = _docx_recommendation(fields, detailed_json)
 
         cv_text = (fields.get("cv_text") or "").strip()
         resume_text = cv_text if cv_text and "no resume attached" not in cv_text.lower() else ""

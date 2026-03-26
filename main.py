@@ -50,7 +50,7 @@ app.add_middleware(
 runs: Dict[str, Dict[str, Any]] = {}
 
 
-_DEFAULT_THRESHOLD = int(os.getenv("PASS_THRESHOLD", "60"))
+_DEFAULT_THRESHOLD = int(os.getenv("TIER1_PASS_THRESHOLD", os.getenv("PASS_THRESHOLD", "60")))
 
 
 class RunRequest(BaseModel):
@@ -115,7 +115,8 @@ def _pipeline_thread(run_id: str, req: RunRequest) -> None:
 
     env = {**os.environ}
     env["TARGET_STAGE_NAME"] = req.stage_name
-    env["PASS_THRESHOLD"] = str(req.pass_threshold)   # config.py reads this; MIN_SCORE_FOR_REPORT is an alias
+    env["TIER1_PASS_THRESHOLD"] = str(req.pass_threshold)
+    env["PASS_THRESHOLD"] = str(req.pass_threshold)   # Legacy key kept for compatibility
     # Force line-by-line (unbuffered) output from all Python subprocesses
     env["PYTHONUNBUFFERED"] = "1"
     env["PYTHONUTF8"] = "1"

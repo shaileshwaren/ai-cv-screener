@@ -153,6 +153,16 @@ def extract_candidate_id(match: Dict[str, Any]) -> Optional[int]:
     return None
 
 
+def is_manatal_match_dropped(match: Dict[str, Any]) -> bool:
+    """True when Manatal marks the job–candidate match as dropped (non-null dropped_at)."""
+    da = match.get("dropped_at")
+    if da is None:
+        return False
+    if isinstance(da, str) and not da.strip():
+        return False
+    return True
+
+
 def get_job_and_org(job_id: str) -> Tuple[Dict[str, Any], str, Optional[int], Optional[str], str]:
     job = api_get(f"/jobs/{job_id}/")
 
@@ -597,13 +607,31 @@ def main() -> int:
                 },
             })
 
-    # Calculate total candidates in target stage
-    total_in_stage = sum(
-        1 for m in matches 
-        if extract_stage_name(m) == Config.TARGET_STAGE_NAME and extract_candidate_id(m) is not None
-    )
+    # Calculate total candidates in target stage (excluding dropped matches when configured)
+    def _in_target_stage(m: Dict[str, Any]) -> bool:
+        if extract_stage_name(m) != Config.TARGET_STAGE_NAME:
+            return False
+        if extract_candidate_id(m) is None:
+            return False
+        if Config.EXCLUDE_DROPPED_MATCHES and is_manatal_match_dropped(m):
+            return False
+        return True
 
-    print(f"\nFound {total_in_stage} candidates in '{Config.TARGET_STAGE_NAME}' stage to process\n")
+    dropped_in_target = sum(
+        1 for m in matches
+        if extract_stage_name(m) == Config.TARGET_STAGE_NAME
+        and extract_candidate_id(m) is not None
+        and is_manatal_match_dropped(m)
+    )
+    total_in_stage = sum(1 for m in matches if _in_target_stage(m))
+
+    print(f"\nFound {total_in_stage} candidates in '{Config.TARGET_STAGE_NAME}' stage to process")
+    if Config.EXCLUDE_DROPPED_MATCHES and dropped_in_target:
+        print(
+            f"  (Excluded {dropped_in_target} dropped candidate(s) — Manatal match dropped_at is set.)\n"
+        )
+    else:
+        print()
 
     base = safe_filename(f"manatal_job_{job_id}_{Config.TARGET_STAGE_NAME}")
     rows: List[Dict[str, Any]] = []
@@ -618,6 +646,9 @@ def main() -> int:
 
         candidate_id = extract_candidate_id(match)
         if not candidate_id:
+            continue
+
+        if Config.EXCLUDE_DROPPED_MATCHES and is_manatal_match_dropped(match):
             continue
 
         match_id = f"{job_id}-{candidate_id}"
@@ -747,7 +778,7 @@ def main() -> int:
         # Route candidate to the appropriate Manatal stage based on score
         if real_match_id and not match.get("_cv_text_override"):
             mid = int(real_match_id)
-            if tier1_score >= Config.PASS_THRESHOLD:
+            if tier1_score >= Config.TIER1_PASS_THRESHOLD:
                 pass_match_ids.append(mid)
             else:
                 fail_match_ids.append(mid)

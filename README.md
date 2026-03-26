@@ -57,6 +57,6 @@ uvicorn main:app --reload --port 8000
 | `AIRTABLE_TABLE_ID` | Candidate table ID |
 | `AIRTABLE_RUBRIC_TABLE_ID` | Rubric table ID |
 | `AIRTABLE_JOB_TABLE_ID` | Job table ID |
-| `PASS_THRESHOLD` | Min score for PASS status (default: 75) |
+| `TIER1_PASS_THRESHOLD` | Tier 1 minimum score to pass (default: 60) |
 | `TARGET_STAGE_NAME` | Manatal stage to pull candidates from (default: New Candidates) |
 | `TARGET_STAGE_AFTER` | Manatal stage to move candidates to after scoring (default: AI Screened) |

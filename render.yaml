@@ -17,7 +17,9 @@ services:
         sync: false
       - key: AIRTABLE_JOB_TABLE_ID
         value: tblCV6w4fGex9VgzK
-      - key: PASS_THRESHOLD
+      - key: AIRTABLE_PIPELINE_SETTINGS_TABLE_ID
+        sync: false
+      - key: TIER1_PASS_THRESHOLD
         value: "60"
       - key: TARGET_STAGE_NAME
         value: "New Candidates"

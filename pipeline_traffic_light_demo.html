@@ -1,0 +1,183 @@
+
+<style>
+  .wrap { padding: 1.5rem 0; font-family: var(--font-sans); }
+  .job-header { margin-bottom: 1.5rem; }
+  .job-title { font-size: 20px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 4px; }
+  .job-meta { font-size: 14px; color: var(--color-text-secondary); margin: 0; }
+  .demo-bar { display: flex; align-items: center; gap: 10px; background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 14px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+  .demo-label { font-size: 13px; color: var(--color-text-secondary); margin-right: 4px; }
+  .demo-btn { font-size: 13px; padding: 5px 14px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-primary); cursor: pointer; }
+  .demo-btn:hover { background: var(--color-background-secondary); }
+  .demo-btn.active { background: #E6F1FB; color: #0C447C; border-color: #B5D4F4; }
+  .step-row { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 10px; }
+  .step-left { display: flex; flex-direction: column; align-items: center; gap: 0; }
+  .traffic-light { width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0; margin-top: 2px; border: 1.5px solid transparent; transition: background 0.3s; }
+  .tl-pending { background: #D3D1C7; border-color: #B4B2A9; }
+  .tl-running { background: #FAC775; border-color: #EF9F27; }
+  .tl-done    { background: #5DCAA5; border-color: #1D9E75; }
+  .tl-error   { background: #F09595; border-color: #E24B4A; }
+  .tl-warn    { background: #FAC775; border-color: #EF9F27; }
+  .step-connector { width: 2px; flex: 1; min-height: 24px; background: var(--color-border-tertiary); margin: 3px 0; }
+  .step-body { flex: 1; padding-bottom: 6px; }
+  .step-name { font-size: 15px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 2px; }
+  .step-desc { font-size: 13px; color: var(--color-text-secondary); margin: 0 0 4px; }
+  .step-detail { font-size: 13px; margin: 0; }
+  .detail-done  { color: #0F6E56; }
+  .detail-run   { color: #854F0B; }
+  .detail-err   { color: #993C1D; }
+  .detail-warn  { color: #854F0B; }
+  .detail-pending { color: var(--color-text-tertiary); }
+  .legend { display: flex; gap: 16px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-text-secondary); }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .metrics { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; margin-bottom: 1.5rem; }
+  .metric { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 12px; }
+  .metric-label { font-size: 12px; color: var(--color-text-secondary); margin: 0 0 4px; }
+  .metric-value { font-size: 22px; font-weight: 500; color: var(--color-text-primary); margin: 0; }
+  .divider { border: none; border-top: 0.5px solid var(--color-border-tertiary); margin: 1.25rem 0; }
+  .candidate-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .candidate-row:last-child { border-bottom: none; }
+  .av { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; flex-shrink: 0; }
+  .av-b { background: #E6F1FB; color: #0C447C; }
+  .av-t { background: #E1F5EE; color: #085041; }
+  .av-p { background: #EEEDFE; color: #3C3489; }
+  .av-c { background: #FAECE7; color: #712B13; }
+  .av-a { background: #FAEEDA; color: #633806; }
+  .cname { font-size: 14px; font-weight: 500; color: var(--color-text-primary); margin: 0; }
+  .csub  { font-size: 12px; color: var(--color-text-secondary); margin: 0; }
+  .score-badge { font-size: 12px; font-weight: 500; padding: 3px 9px; border-radius: var(--border-radius-md); }
+  .sc-high { background: #EAF3DE; color: #3B6D11; }
+  .sc-mid  { background: #FAEEDA; color: #854F0B; }
+  .pill { font-size: 11px; padding: 3px 9px; border-radius: 20px; }
+  .pill-short { background: #E1F5EE; color: #0F6E56; }
+  .pill-review { background: #E6F1FB; color: #185FA5; }
+  .notice { border-left: 3px solid #FAC775; background: #FAEEDA; border-radius: 0 var(--border-radius-md) var(--border-radius-md) 0; padding: 10px 14px; margin-top: 1.25rem; }
+  .notice p { font-size: 13px; color: #854F0B; margin: 0; }
+  .notice p + p { margin-top: 4px; }
+  .section-title { font-size: 12px; font-weight: 500; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 10px; }
+</style>
+
+<div class="wrap">
+  <div class="job-header">
+    <p class="job-title">Business Development Manager — AI Solutions</p>
+    <p class="job-meta" id="job-meta">Screening run · waiting to start</p>
+  </div>
+
+  <div class="demo-bar">
+    <span class="demo-label">Simulate pipeline:</span>
+    <button class="demo-btn active" id="btn0" onclick="setState(0)">Not started</button>
+    <button class="demo-btn" id="btn1" onclick="setState(1)">Rubric running</button>
+    <button class="demo-btn" id="btn2" onclick="setState(2)">Scoring running</button>
+    <button class="demo-btn" id="btn3" onclick="setState(3)">Error on step 3</button>
+    <button class="demo-btn" id="btn4" onclick="setState(4)">All done</button>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#D3D1C7;"></div>Not started</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#FAC775;"></div>In progress</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#5DCAA5;"></div>Done</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#F09595;"></div>Failed</div>
+  </div>
+
+  <div id="steps-list"></div>
+
+  <div id="results-section" style="display:none;">
+    <hr class="divider">
+    <div class="metrics" id="metrics-row"></div>
+    <hr class="divider">
+    <p class="section-title">Candidate results</p>
+    <div id="candidates-list"></div>
+    <div class="notice" id="notice-box" style="display:none;">
+      <p style="font-weight:500;">Action needed</p>
+      <p>3 candidates could not be automatically moved to the next stage — they may have been previously marked as withdrawn. Please review and update their status manually.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const STEPS = [
+  { name: "Rubric generation", desc: "Analysing job description and building scoring criteria" },
+  { name: "AI scoring", desc: "Reviewing each candidate's CV against the rubric" },
+  { name: "Saving results", desc: "Uploading scores and records to the database" },
+  { name: "Detailed reports", desc: "Generating AI-powered breakdown reports per candidate" },
+  { name: "Submission documents", desc: "Creating Word docs for shortlisted candidates" }
+];
+
+const CANDIDATES = [
+  { initials:"RC", av:"av-b", name:"Ramon Christopher",    sub:"Detailed report + submission doc ready", score:85, pill:"Shortlisted", pc:"sc-high", lc:"pill-short" },
+  { initials:"AY", av:"av-t", name:"Azmy Yaacob",          sub:"Detailed report + submission doc ready", score:85, pill:"Shortlisted", pc:"sc-high", lc:"pill-short" },
+  { initials:"IO", av:"av-p", name:"Irene Ong",             sub:"Detailed report + submission doc ready", score:85, pill:"Shortlisted", pc:"sc-high", lc:"pill-short" },
+  { initials:"DS", av:"av-c", name:"Dina Seikh Salleh",     sub:"Report available for review",            score:75, pill:"Under threshold", pc:"sc-mid",  lc:"pill-review" },
+  { initials:"RT", av:"av-a", name:"Retnatharmini",         sub:"Report available for review",            score:75, pill:"Under threshold", pc:"sc-mid",  lc:"pill-review" }
+];
+
+const STATES = [
+  { meta:"Waiting to start", steps:["pending","pending","pending","pending","pending"], showResults:false },
+  { meta:"Step 1 of 5 — generating rubric...", steps:["running","pending","pending","pending","pending"], showResults:false },
+  { meta:"Step 2 of 5 — scoring candidates...", steps:["done","running","pending","pending","pending"], showResults:false },
+  { meta:"Step 3 failed — action needed", steps:["done","done","error","pending","pending"], showResults:false, errorStep:2 },
+  { meta:"All steps completed · 5 candidates reviewed", steps:["done","done","done","done","done"], showResults:true }
+];
+
+const STEP_DETAILS = {
+  pending: { cls:"detail-pending", text:"Waiting..." },
+  running: { cls:"detail-run",     text:"Running now..." },
+  done:    { cls:"detail-done",    text:"Completed successfully" },
+  error:   { cls:"detail-err",     text:"Failed — please check and retry" },
+  warn:    { cls:"detail-warn",    text:"Completed with warnings" }
+};
+
+const TL = { pending:"tl-pending", running:"tl-running", done:"tl-done", error:"tl-error", warn:"tl-warn" };
+
+function renderSteps(statuses) {
+  const list = document.getElementById("steps-list");
+  list.innerHTML = STEPS.map((s, i) => {
+    const st = statuses[i];
+    const d = STEP_DETAILS[st];
+    const isLast = i === STEPS.length - 1;
+    return `<div class="step-row">
+      <div class="step-left">
+        <div class="traffic-light ${TL[st]}"></div>
+        ${!isLast ? '<div class="step-connector"></div>' : ''}
+      </div>
+      <div class="step-body">
+        <p class="step-name">Step ${i+1} — ${s.name}</p>
+        <p class="step-desc">${s.desc}</p>
+        <p class="step-detail ${d.cls}">${d.text}</p>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function renderResults() {
+  document.getElementById("metrics-row").innerHTML = `
+    <div class="metric"><p class="metric-label">Candidates reviewed</p><p class="metric-value">5</p></div>
+    <div class="metric"><p class="metric-label">Shortlisted</p><p class="metric-value" style="color:#3B6D11;">3</p></div>
+    <div class="metric"><p class="metric-label">Under threshold</p><p class="metric-value" style="color:#993C1D;">2</p></div>
+    <div class="metric"><p class="metric-label">Submission docs</p><p class="metric-value">3</p></div>`;
+  document.getElementById("candidates-list").innerHTML = CANDIDATES.map(c => `
+    <div class="candidate-row">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="av ${c.av}">${c.initials}</div>
+        <div><p class="cname">${c.name}</p><p class="csub">${c.sub}</p></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="score-badge ${c.pc}">Score: ${c.score}</span>
+        <span class="pill ${c.lc}">${c.pill}</span>
+      </div>
+    </div>`).join("");
+  document.getElementById("notice-box").style.display = "block";
+}
+
+function setState(n) {
+  const s = STATES[n];
+  document.getElementById("job-meta").textContent = s.meta;
+  renderSteps(s.steps);
+  const rs = document.getElementById("results-section");
+  if (s.showResults) { rs.style.display="block"; renderResults(); }
+  else { rs.style.display="none"; }
+  document.querySelectorAll(".demo-btn").forEach((b,i) => b.classList.toggle("active", i===n));
+}
+
+setState(0);
+</script>

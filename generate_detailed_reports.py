@@ -6,7 +6,7 @@ threshold, re-scoring them with AI for a granular item-by-item breakdown.
 
 This script:
 1. Reads scored candidates from output/upload/*.csv
-2. For candidates with t1_score >= PASS_THRESHOLD:
+2. For candidates with t1_score >= TIER1_PASS_THRESHOLD:
    - RE-SCORES them using OpenAI (gpt-4o) with detailed prompt
    - Gets REAL scores for each compliance/must-have/nice-to-have item
    - Generates detailed scoring JSON (NO placeholders)
@@ -87,53 +87,54 @@ def update_airtable_report(
     Finds the candidate record by (job_id, candidate_id),
     uploads the HTML as an attachment to ai_report_html, and stores the
     detailed JSON string + t2_score.
+    Core fields are patched first; ``t2_status`` is updated in a separate PATCH
+    so a single-select / permissions failure there does not roll back the report.
     """
+    at = AirtableClient()
+    html_text = html_path.read_text(encoding="utf-8")
+    file_name = f"{candidate_id}_report_{job_id}.html"
+
+    formula = f"AND({{job_id}}={job_id}, {{candidate_id}}={candidate_id})"
+    records = at.get_records_by_formula(formula)
+    if not records:
+        print(f"[WARN] No Airtable record found for job_id={job_id} candidate_id={candidate_id}")
+        return False
+
+    record_id = records[0]["id"]
+    report_score = int(detailed_json.get("overall_score") or detailed_json.get("ai_score") or 0)
+
+    recommendation = (detailed_json.get("recommendation") or "").strip().upper()
+    if recommendation not in ("PASS", "FAIL", "REVIEW"):
+        recommendation = "PASS" if report_score >= Config.TIER2_PASS_THRESHOLD else "FAIL"
+
+    core_fields = {
+        "ai_detailed_json": json.dumps(detailed_json, ensure_ascii=False),
+        "t2_score": report_score,
+        "ai_summary": detailed_json.get("ai_summary") or "",
+        "ai_strengths": detailed_json.get("ai_strengths") or "",
+        "ai_gaps": detailed_json.get("ai_gaps") or "",
+    }
+
     try:
-        at = AirtableClient()
-        html_text = html_path.read_text(encoding="utf-8")
-        file_name = f"{candidate_id}_report_{job_id}.html"
-
-        # Resolve the Airtable record ID for this candidate
-        formula = f"AND({{job_id}}={job_id}, {{candidate_id}}={candidate_id})"
-        records = at.get_records_by_formula(formula)
-        if not records:
-            print(f"[WARN] No Airtable record found for job_id={job_id} candidate_id={candidate_id}")
-            return False
-
-        record_id = records[0]["id"]
-        report_score = int(detailed_json.get("overall_score") or detailed_json.get("ai_score") or 0)
-
-        # Clear any existing report attachment before uploading the new one
-        # so only one copy is ever stored in Airtable.
         at.update_record(record_id, {"ai_report_html": []})
-
-        # Upload HTML as attachment to ai_report_html field
         at.upload_text_as_attachment(
             record_id=record_id,
             field_name="ai_report_html",
             text_content=html_text,
             filename=file_name,
         )
-
-        # Use the rubric-driven recommendation if available; fall back to threshold
-        recommendation = (detailed_json.get("recommendation") or "").strip().upper()
-        if recommendation not in ("PASS", "FAIL"):
-            recommendation = "PASS" if report_score >= Config.PASS_THRESHOLD else "FAIL"
-
-        at.update_record(record_id, {
-            "ai_detailed_json": json.dumps(detailed_json, ensure_ascii=False),
-            "t2_score": report_score,
-            "t2_status": recommendation,
-            "ai_summary": detailed_json.get("ai_summary") or "",
-            "ai_strengths": detailed_json.get("ai_strengths") or "",
-            "ai_gaps": detailed_json.get("ai_gaps") or "",
-        })
-
-        return True
-
+        at.update_record(record_id, core_fields)
     except Exception as e:
         print(f"[WARN] Airtable report update failed: {e}")
         return False
+
+    if not at.update_record(record_id, {"t2_status": recommendation}):
+        print(
+            f"[WARN] t2_status={recommendation!r} could not be written for "
+            f"candidate_id={candidate_id} (HTML and JSON were saved if core PATCH succeeded)"
+        )
+
+    return True
 
 
 # =========================
@@ -168,7 +169,8 @@ def parse_rubric_structure(rubric: dict) -> Dict[str, Any]:
     - Legacy schema: compliance (list of dicts), must_have/nice_to_have (top-level),
       normalized_terms (dict of objects)
 
-    Pass threshold is always sourced from Config.PASS_THRESHOLD (user-configured),
+    Tier 2 pass threshold in ``pass_threshold`` is sourced from
+    ``Config.TIER2_PASS_THRESHOLD`` (env / optional Airtable pipeline settings),
     never from the rubric.
     """
     compliance: List[dict] = []
@@ -239,13 +241,12 @@ def parse_rubric_structure(rubric: dict) -> Dict[str, Any]:
             if isinstance(details, dict):
                 semantic_terms.extend(a for a in details.get("aliases", [])[:3] if a)
 
-    # Pass threshold is user-input derived (Config.PASS_THRESHOLD); never read from rubric.
     return {
         "compliance": compliance,
         "must_have": must_have,
         "nice_to_have": nice_to_have,
         "semantic_terms": semantic_terms,
-        "pass_threshold": Config.PASS_THRESHOLD,
+        "pass_threshold": Config.TIER2_PASS_THRESHOLD,
     }
 
 
@@ -268,7 +269,7 @@ def build_detailed_scoring_prompt(rubric: dict, rubric_structure: Dict[str, Any]
     nice_to_have_skills = rubric_structure.get("nice_to_have", [])
     compliance_items = rubric_structure.get("compliance", [])
     semantic_terms = rubric_structure.get("semantic_terms", [])
-    pass_threshold = rubric_structure.get("pass_threshold", Config.PASS_THRESHOLD)
+    pass_threshold = rubric_structure.get("pass_threshold", Config.TIER2_PASS_THRESHOLD)
 
     mh_ids = [r.get("id", f"MH{i+1}") for i, r in enumerate(must_have_reqs)]
     nh_ids = [s.get("id", f"NH{i+1}") for i, s in enumerate(nice_to_have_skills)]
@@ -361,7 +362,10 @@ def build_detailed_scoring_prompt(rubric: dict, rubric_structure: Dict[str, Any]
         f"3. The compliance array MUST contain EXACTLY {len(compliance_items)} item(s) matching the rubric above.\n"
         "4. Use the EXACT item ID, requirement text, and weight from the rubric. Do NOT rephrase or add criteria.\n"
         "5. Provide specific evidence quotes from the resume for each score.\n"
-        f"6. Pass threshold: overall_score >= {pass_threshold}. Set recommendation to PASS or FAIL accordingly.\n"
+        f"6. Tier 2 pass threshold: overall_score >= {pass_threshold} contributes to PASS vs FAIL. "
+        "Compliance is PASS/FAIL only: any FAIL disqualifies; ambiguous or unaudited compliance must yield REVIEW overall. "
+        "Set recommendation to PASS (score meets threshold and no blocking compliance/floor issues), "
+        "FAIL (score below threshold, must-have floor breached, or any compliance FAIL), or REVIEW (compliance inconclusive/NOT_ASSESSED).\n"
         f"7. overall_score MUST equal sum of (score/{max_score} × weight) for all items.\n"
         "8. Evaluate on demonstrated outcomes only. Ignore protected attributes (age, gender, race, etc.).\n"
         "9. Respond with ONLY valid JSON. No markdown, no code blocks, no preamble.\n"
@@ -383,7 +387,7 @@ REQUIRED JSON OUTPUT:
   "ai_summary": "2-3 sentence assessment (max 60 words)",
   "ai_strengths": "comma-separated strengths",
   "ai_gaps": "comma-separated gaps",
-  "recommendation": "PASS|FAIL",
+  "recommendation": "PASS|FAIL|REVIEW",
   "floor_triggered": false
 }"""
 
@@ -467,6 +471,31 @@ def llm_score_detailed(
         }
 
 
+def compute_server_tier2_recommendation(
+    recomputed: float,
+    floor_triggered: bool,
+    compliance_rows: List[dict],
+    tier2_threshold: float,
+) -> str:
+    """Derive Tier 2 status: floor → FAIL; any compliance FAIL → FAIL;
+    non-empty compliance with NOT_ASSESSED/empty → REVIEW; else score vs threshold → PASS/FAIL.
+    """
+    if floor_triggered:
+        return "FAIL"
+    for row in compliance_rows:
+        st = (row.get("status") or "").strip().upper()
+        if st == "FAIL":
+            return "FAIL"
+    if compliance_rows:
+        for row in compliance_rows:
+            st = (row.get("status") or "").strip().upper()
+            if not st or st == "NOT_ASSESSED" or st not in ("PASS", "FAIL"):
+                return "REVIEW"
+    if recomputed >= tier2_threshold:
+        return "PASS"
+    return "FAIL"
+
+
 # =========================
 # Normalize LLM response to match rubric (count + item text)
 # =========================
@@ -489,7 +518,8 @@ def normalize_detailed_response(ai_data: dict, rubric_structure: Dict[str, Any])
         if i < len(ai_compliance):
             a = ai_compliance[i]
             if isinstance(a, dict):
-                entry["status"] = a.get("status", "NOT_ASSESSED")
+                raw_st = (a.get("status") or "").strip()
+                entry["status"] = "NOT_ASSESSED" if not raw_st else raw_st.upper()
                 entry["evidence"] = a.get("evidence", a.get("details", ""))
                 entry["details"] = entry["evidence"]
         norm_compliance.append(entry)
@@ -585,8 +615,8 @@ def generate_detailed_json_with_ai(
 ) -> Dict[str, Any]:
     """Generate detailed JSON by re-scoring with AI for granular breakdown.
 
-    After the LLM returns, applies server-side score recomputation and the
-    hard-coded floor rule so that final scores and recommendations are reliable.
+    After the LLM returns, applies server-side score recomputation, the configurable
+    must-have floor, and compliance-aware Tier 2 recommendation logic.
     """
     print(f"    Re-scoring with AI for detailed breakdown...")
 
@@ -615,13 +645,17 @@ def generate_detailed_json_with_ai(
     # ── Server-side score recomputation ──────────────────────────────────────
     recomputed = _recompute_score(ai_data, rating_max)
 
-    # ── Hard-coded floor rule ─────────────────────────────────────────────────
-    pass_threshold = rubric_structure.get("pass_threshold", Config.PASS_THRESHOLD)
+    # ── Must-have floor (configurable) ────────────────────────────────────────
+    must_floor = float(Config.MUST_HAVE_FLOOR_RULE)
+    tier2_threshold = float(rubric_structure.get("pass_threshold", Config.TIER2_PASS_THRESHOLD))
     floor_triggered = any(
-        float(item.get("score", 0) or 0) < 2
+        float(item.get("score", 0) or 0) < must_floor
         for item in ai_data.get("must_have", [])
     )
-    recommendation = "FAIL" if (floor_triggered or recomputed < pass_threshold) else "PASS"
+    compliance_rows = ai_data.get("compliance", []) or []
+    recommendation = compute_server_tier2_recommendation(
+        recomputed, floor_triggered, compliance_rows, tier2_threshold
+    )
 
     ai_data["floor_triggered"] = floor_triggered
     ai_data["recommendation"] = recommendation
@@ -640,6 +674,8 @@ def generate_detailed_json_with_ai(
 
     company_name = rubric.get("company", "Recruitment System")
 
+    pass_threshold = int(tier2_threshold)
+
     detailed_json = {
         "compliance": ai_data.get("compliance", []),
         "must_have": ai_data.get("must_have", []),
@@ -655,6 +691,10 @@ def generate_detailed_json_with_ai(
         "candidate_id": candidate.get("candidate_id", ""),
         "position": candidate.get("job_name", ""),
         "pass_threshold": pass_threshold,
+        "tier1_pass_threshold": Config.TIER1_PASS_THRESHOLD,
+        "tier2_pass_threshold": Config.TIER2_PASS_THRESHOLD,
+        "tier2_must_have_floor": Config.MUST_HAVE_FLOOR_RULE,
+        "must_have_floor_rule": Config.MUST_HAVE_FLOOR_RULE,
         "report_date": datetime.now().strftime("%B %d, %Y"),
         "generated_at": datetime.now().isoformat(),
         "generated_by": f"{company_name} Recruitment System",
@@ -810,9 +850,11 @@ def generate_html_report(detailed_json: Dict[str, Any]) -> str:
             if status == "PASS":
                 b_cls, b_lbl = "badge-pass", "COMPLY"
             elif status == "FAIL":
-                b_cls, b_lbl = "badge-fail", "REVIEW"
+                # Compliance FAIL is an unambiguous disqualifier.
+                b_cls, b_lbl = "badge-fail", "FAIL"
             else:
-                b_cls, b_lbl = "badge-review", status
+                # Only unknown/unaudited compliance is rendered as REVIEW.
+                b_cls, b_lbl = "badge-review", "REVIEW"
             html += f"""
                     <tr>
                         <td class="requirement-text">{req_text}</td>
